@@ -101,6 +101,7 @@ def test_terminal_titled_tmux_records_command_and_repo(tmp_path):
     slot = compact(events, T0, T0 + 900, ["tidepool", "Other"])
     assert slot.items[0].project == "tidepool"
     assert len(run.calls) == 6
+    assert counters(store, day_of(T0)) == {"recorded": 6, "tmux context": 3}
 
 
 def test_terminal_with_a_real_title_is_left_alone(tmp_path):
@@ -113,4 +114,4 @@ def test_repo_with_a_title_word_keeps_the_window_out(tmp_path):
     config = Config(allowed_roots=[str(tmp_path / "code")], ignore_title_words=["acme"])
     store, _ = collect(tmp_path, [(0, "WezTerm", "tmux")], "acme-tools/src", config)
     assert store.events(0, 4e9) == []
-    assert counters(store, day_of(T0)) == {"title word": 6}
+    assert counters(store, day_of(T0)) == {"title word": 6, "tmux context": 6}

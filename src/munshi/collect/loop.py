@@ -215,10 +215,17 @@ class Collector:
 
     def _window(self, now: float, idle: float) -> str:
         win = self.windows.front_window()
-        if win and self.tmux and win.app.lower() in TERMINALS and bare_title(win.title):
-            # The pane's "command — repo" stands in for the title, so the word checks,
-            # redaction and project detection all see it.
-            win.title = self.tmux.context() or win.title
+        # A terminal titled just "tmux" takes the pane's "command — repo" as its title,
+        # so the word checks, redaction and project detection all see it.
+        if (
+            win
+            and self.tmux
+            and win.app.lower() in TERMINALS
+            and bare_title(win.title)
+            and (context := self.tmux.context())
+        ):
+            win.title = context
+            self.count(now, "tmux context")
         reason = self.skip_reason(win)
         if reason or win is None:
             if self.current:
