@@ -127,3 +127,16 @@ def test_app_without_window_has_no_title():
     appkit, ax, quartz = fake_modules(workspace, trusted=True, titles={})
     source = MacWindowSource(MainThread(lambda fn: fn()), appkit, ax, quartz)
     assert source.front_window().title is None
+
+
+def test_front_window_carries_the_bundle_id():
+    workspace = FakeWorkspace()
+    appkit, ax, quartz = fake_modules(workspace, trusted=False)
+    source = MacWindowSource(MainThread(lambda fn: fn()), appkit, ax, quartz)
+    assert source.front_window().bundle is None
+    running = SimpleNamespace(bundleIdentifier=lambda: "org.mozilla.firefox")
+    appkit.NSRunningApplication = SimpleNamespace(
+        runningApplicationWithProcessIdentifier_=lambda pid: running if pid == 11 else None
+    )
+    assert source.front_window().bundle == "org.mozilla.firefox"
+    assert source.bundle(99) is None

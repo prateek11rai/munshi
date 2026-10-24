@@ -19,8 +19,8 @@ class ScriptedWindows:
 
         Args:
             clock: The clock the script is read against.
-            steps: (time, app, title) or (time, app, title, pid); each holds until the
-                next. app None means no window.
+            steps: (time, app, title), optionally followed by pid and bundle id; each
+                holds until the next. app None means no window.
             away: (start, end) stretches with no input.
             pid: Process id reported for windows whose step names none.
         """
@@ -43,7 +43,8 @@ class ScriptedWindows:
         if current is None or current[1] is None:
             return None
         pid = current[3] if len(current) > 3 else self.pid
-        return Window(app=current[1], title=current[2], pid=pid)
+        bundle = current[4] if len(current) > 4 else None
+        return Window(app=current[1], title=current[2], pid=pid, bundle=bundle)
 
     def idle_seconds(self) -> float:
         """Return scripted idle time.

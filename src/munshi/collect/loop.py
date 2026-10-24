@@ -29,6 +29,7 @@ class Window:
     app: str
     title: str | None = None
     pid: int | None = None
+    bundle: str | None = None
 
 
 class WindowSource(Protocol):
@@ -171,7 +172,7 @@ class Collector:
         words = self.config.ignore_title_words
         if contains_word(win.title, words) or contains_word(win.app, words):
             return "title word"
-        if self.procs.matches(win.pid, win.app):
+        if self.procs.matches(win.pid, win.app, win.bundle):
             return "process word"
         return None
 

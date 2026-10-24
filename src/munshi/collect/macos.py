@@ -152,6 +152,21 @@ class MacWindowSource:
             return None
         return str(title)
 
+    def bundle(self, pid: int) -> str | None:
+        """Return an app's bundle identifier (NSRunningApplication is safe off the main thread).
+
+        Args:
+            pid: The app's process id.
+
+        Returns:
+            E.g. "org.mozilla.firefox", or None.
+        """
+        try:
+            app = self.appkit.NSRunningApplication.runningApplicationWithProcessIdentifier_(pid)
+            return str(app.bundleIdentifier()) if app and app.bundleIdentifier() else None
+        except AttributeError:
+            return None
+
     def front_window(self) -> Window | None:
         """Return the front app and, with Accessibility permission, its window title.
 
@@ -163,7 +178,7 @@ class MacWindowSource:
             return None
         name, pid = front
         title = self.title(pid) if self.trusted() else None
-        return Window(app=name, title=title, pid=pid)
+        return Window(app=name, title=title, pid=pid, bundle=self.bundle(pid))
 
     def idle_seconds(self) -> float:
         """Return seconds since the last keyboard, mouse or trackpad input.

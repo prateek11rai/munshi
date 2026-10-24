@@ -15,7 +15,7 @@ You do nothing. You never write a status update, you never rebuild yesterday fro
 - It records the front app's name, the window title, and for folders you list, git branch, commit subjects and the names of changed files. No screenshots, no keystrokes, no clipboard history, no browser history, no file contents, no diffs.
 - Password managers, Keychain Access, System Settings and the lock screen are never recorded, nor any app you add to the ignore list. Private and incognito windows are recorded as the app name only.
 - **Title words:** list words such as your employer's name under `ignore_title_words`, and any window whose title (or app name) contains one is not recorded at all, as if the app were ignored. Git repos, commit subjects and file names containing one are dropped too.
-- **Process words:** list words under `ignore_process_words`, and any app started with a command line that contains one is not recorded. This keeps a work browser profile (opened with a profile name or path holding the word) out, while your personal profile is still recorded.
+- **Process words:** list words under `ignore_process_words`, and any app started with a command line that contains one is not recorded. For Firefox, the name of the profile folder it has open counts too. This keeps a work browser profile out while your personal profile is still recorded.
 - Emails, links (only the site name is kept), tokens and long numbers are removed before anything is saved.
 - No folders are scanned until you list them. **Pause** stops all recording; **Forget last hour** deletes it.
 - Raw window events are deleted after 14 days. The data folder is readable only by you.

@@ -4,7 +4,7 @@ import pytest
 
 from munshi.collect.fake import ScriptedScanner, ScriptedWindows
 from munshi.collect.loop import AWAY_AFTER, Collector, Window, scrub
-from munshi.collect.procs import ProcessWords
+from munshi.collect.procs import ProcessWords, is_firefox
 from munshi.config import Config
 from munshi.control import UNTIL_RESUME, forget, pause, resume
 from munshi.stats import counters
@@ -194,13 +194,24 @@ def test_title_word_checked_before_redaction_and_on_app_name():
     assert polls(store) == {"title word": 6}
 
 
-def fake_ps(commands):
+def fake_ps(commands, open_files=None):
+    """Fake `ps` (command lines by pid) and `lsof` (open file paths by pid)."""
     calls = []
+    open_files = open_files or {}
 
     def run(args, **kwargs):
         calls.append(args)
-        assert args[:3] == ["/bin/ps", "-o", "command="] and kwargs.get("shell") is not True
-        command = commands.get(int(args[-1]))
+        assert kwargs.get("shell") is not True
+        pid = int(args[args.index("-p") + 1])
+        if args[0] == "/usr/sbin/lsof":
+            assert args == ["/usr/sbin/lsof", "-w", "-a", "-p", str(pid), "-Fn"]
+            files = open_files.get(pid)
+            if isinstance(files, Exception):
+                raise files
+            out = "".join(f"p{pid}\nf{n}\nn{path}\n" for n, path in enumerate(files or []))
+            return subprocess.CompletedProcess(args, 0 if files else 1, out, "")
+        assert args[:3] == ["/bin/ps", "-o", "command="]
+        command = commands.get(pid)
         if isinstance(command, Exception):
             raise command
         if command is None:
@@ -219,7 +230,8 @@ def test_process_word_skips_the_work_browser_profile():
         {
             11: f"{FIREFOX} -profile /Users/me/Library/Firefox/Profiles/x1.Acme-work",
             12: f"{FIREFOX} -profile /Users/me/Library/Firefox/Profiles/y2.home",
-        }
+        },
+        {12: ["/Users/me/Library/Firefox/Profiles/y2.home/.parentlock"]},
     )
     config = Config(ignore_process_words=["acme"])
     clock, store, c = make(
@@ -234,7 +246,51 @@ def test_process_word_skips_the_work_browser_profile():
     run(c, clock, 90)
     assert windows(store) == [("window", "Firefox", "SQLite WAL mode", 30, 60)]
     assert polls(store) == {"process word": 6, "recorded": 3}
-    assert [call[-1] for call in ps.calls] == ["11", "12"]
+    assert [(call[0], call[-1]) for call in ps.calls] == [
+        ("/bin/ps", "11"),
+        ("/bin/ps", "12"),
+        ("/usr/sbin/lsof", "-Fn"),
+    ]
+
+
+PROFILES = "/Users/me/Library/Application Support/Firefox/Profiles"
+
+
+def test_firefox_profile_folder_name_blocks_the_work_profile():
+    ps = fake_ps(
+        {21: FIREFOX, 22: FIREFOX},
+        {
+            21: [f"{PROFILES}/k3x9.Acme-2/.parentlock", f"{PROFILES}/k3x9.Acme-2/places.sqlite"],
+            22: [f"{PROFILES}/h7q2.default-release/.parentlock", "/usr/lib/libc.dylib"],
+        },
+    )
+    config = Config(ignore_process_words=["acme"])
+    clock, store, c = make(
+        [
+            (0, "Firefox", "Team board", 21, "org.mozilla.firefox"),
+            (30, "Firefox", "SQLite WAL mode", 22, "org.mozilla.firefox"),
+            (60, "Firefox", "Team board", 21, "org.mozilla.firefox"),
+        ],
+        config=config,
+        procs=ProcessWords(config.ignore_process_words, run=ps),
+    )
+    run(c, clock, 90)
+    assert windows(store) == [("window", "Firefox", "SQLite WAL mode", 30, 60)]
+    assert polls(store) == {"process word": 6, "recorded": 3}
+    assert len(ps.calls) == 4
+
+
+def test_firefox_profile_check_failures_are_no_match_and_not_cached():
+    words = ["acme"]
+    failing = fake_ps({21: FIREFOX}, {21: OSError("no lsof")})
+    procs = ProcessWords(words, run=failing)
+    assert not procs.matches(21, "Firefox", "org.mozilla.firefox") and procs.cache == {}
+    empty = ProcessWords(words, run=fake_ps({21: FIREFOX}, {21: ["/usr/lib/libc.dylib"]}))
+    assert not empty.matches(21, "Firefox", "org.mozilla.firefox") and empty.cache == {}
+    other = fake_ps({31: "/Applications/Code.app/Contents/MacOS/Electron"})
+    assert not ProcessWords(words, run=other).matches(31, "Code", "com.microsoft.VSCode")
+    assert [call[0] for call in other.calls] == ["/bin/ps"]
+    assert is_firefox("Firefox Nightly", None) and not is_firefox("Firefox", "com.example.app")
 
 
 def test_process_word_failure_records_and_retries():
