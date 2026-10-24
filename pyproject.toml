@@ -1,0 +1,53 @@
+[project]
+name = "munshi"
+version = "0.1.0"
+description = "A desktop buddy that keeps your daily work register with a local open-weight model."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic==2.14.1",
+    "pywebview==6.2.1; sys_platform == 'darwin'",
+    "pyobjc-framework-Cocoa==12.2.2; sys_platform == 'darwin'",
+    "pyobjc-framework-Quartz==12.2.2; sys_platform == 'darwin'",
+    "pyobjc-framework-ApplicationServices==12.2.2; sys_platform == 'darwin'",
+]
+
+[project.scripts]
+munshi = "munshi.cli:main"
+
+[dependency-groups]
+dev = ["pytest==9.1.1", "ruff==0.17.1"]
+
+[build-system]
+requires = ["uv_build==0.12.3"]
+build-backend = "uv_build"
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+default = true
+
+[tool.uv]
+exclude-newer = "2026-10-17T00:00:00Z"
+python-downloads = "never"
+python-preference = "only-system"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "D", "S", "SIM"]
+ignore = ["D100", "D104"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D", "S101"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["model: calls the real local Ollama model (needs `ollama serve` and the model pulled)"]
