@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 
-from munshi.config import Config
+from munshi.config import Config, contains_word
 from munshi.store import Store
 from munshi.timefmt import SLOT_SECONDS, Clock, day_bounds, day_of, slot_start
 from munshi.write import blocks as blk
@@ -54,9 +54,12 @@ class Result:
 def known_projects(store: Store, config: Config) -> list[str]:
     """Return repo names under the allowed roots or seen in git events, plus "Other".
 
+    Names holding a blocked title word are left out, so the model can never be
+    offered (and code can never store) such a name as a project.
+
     Args:
         store: The store.
-        config: Settings (allowed roots).
+        config: Settings (allowed roots, blocked title words).
 
     Returns:
         Sorted project names with "Other" last.
@@ -65,6 +68,7 @@ def known_projects(store: Store, config: Config) -> list[str]:
 
     names = set(store.repos()) | set(store.get("known_repos", []))
     names |= {repo.name for repo in find_repos(config.roots())}
+    names = {n for n in names if not contains_word(n, config.ignore_title_words)}
     return sorted(names - {"Other"}, key=str.lower) + ["Other"]
 
 

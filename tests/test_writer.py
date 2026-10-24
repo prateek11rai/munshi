@@ -212,3 +212,13 @@ def test_slots_without_a_model_have_no_seconds():
     store, writer, _ = setup(None)
     writer.run()
     assert [r["seconds"] for r in slot_rows(store, DAY)] == [None, None]
+
+
+def test_known_projects_leave_out_names_with_title_words(tmp_path):
+    for name in ("tidepool", "acme-tools"):
+        (tmp_path / name / ".git").mkdir(parents=True)
+    store = Store(":memory:")
+    store.set("known_repos", ["lantern", "Acme"])
+    config = Config(allowed_roots=[str(tmp_path)], ignore_title_words=["acme"])
+    assert known_projects(store, config) == ["lantern", "tidepool", "Other"]
+    assert "acme-tools" in known_projects(store, Config(allowed_roots=[str(tmp_path)]))
