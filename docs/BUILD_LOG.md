@@ -115,3 +115,70 @@ Note: the Copy check ran in a headed browser, so the made-up demo timesheet text
 
 - Resolved in review 1: CI actions are pinned to commit SHAs (looked up by the planner), and the model job moved to `.github/workflows/model.yml`, which runs only when `src/munshi/write/**`, the model test, `pyproject.toml`, `uv.lock` or the workflow itself change, or by hand (`workflow_dispatch`).
 - The global `devrelay-*` skills on this laptop came from DevRelay's self-update when the gateway launched; the planner handles the cleanup with the owner.
+
+# Build log · phase B
+
+Real collection on the owner's work laptop, under the owner's rules: every app except Slack and any window of the work browser profile is recorded, and any window whose title contains the work word is dropped. The work word lives only in `~/.munshi/config.toml`; code, tests and docs use `acme`. Nobody reads raw Munshi data here: everything below about the real run comes from `munshi stats` (numbers only) or from the owner's eyes.
+
+## Decisions
+
+- **Title words** (`ignore_title_words`) are checked on the raw title, before redaction, and also on the app name. A hit is handled exactly like an ignored app: the current event is closed and nothing is added. Git repos, branches, commit subjects and changed file names, and Spotlight file names and folders, that contain a word are dropped too (a repo or file event whose name holds the word is dropped whole), so the word cannot reach the store through the scanners.
+- **Process words** (`ignore_process_words`): `ps -o command= -p <pid>` with list arguments, no shell, 2 s timeout. Only the yes/no answer is cached, keyed by (pid, app name), so a reused pid with another app is read again; the command line itself is never kept. A failed `ps` counts as no match and is *not* cached, so it is tried again on the next poll rather than letting a work profile through for the rest of the run.
+- **Firefox profile folders.** On this laptop both Firefox processes (one per profile) were started with no profile in the command line (the profiles come from Firefox's own switcher) and neither profile folder holds the work word. So for Firefox (bundle `org.mozilla.firefox`, Developer Edition or Nightly; by name when the bundle is unknown) the process check also runs `lsof -w -a -p <pid> -Fn` and matches the words against the profile folder names under `…/Firefox/Profiles/`; the owner's work profile folder name went into `ignore_process_words`. Only yes/no is cached; a failed `lsof`, or no profile folder open yet, is no match and is retried. The front window's bundle id comes from `NSRunningApplication` by pid, which is safe off the main thread.
+- **Config is strict now.** Unknown keys are refused (a misspelt `ignore_title_word` must fail loudly, not silently record everything), and config errors name the key, never the value, because the values are private.
+- **Skip counters.** Every poll is counted per day by outcome: recorded, private, ignored app, title word, process word, own window, no window, paused, away. They live in a `counters` table (numbers only) and `munshi stats` reads them. Schema version 2 also adds `seconds` and `reasons` to `slots`; a version-1 database gains the columns in place.
+- **App status.** `munshi start` stores its pid, the Accessibility flag, RSS and CPU% (`ps -o rss=,%cpu=`) at launch and every 10 minutes; `stats` shows them and whether that pid is still running.
+- **501 remembered.** After Homebrew's MLX Ollama answers 501 to `format`, the client never sends `format` again; the card service keeps one client per model so Refresh keeps that knowledge too.
+- **`eval --real`** copies the store with SQLite's backup API into a temporary folder, deletes that day's blocks, slot marks and topics first seen since, and rewrites the day's finished slots. The real store is opened read-only and never written. It prints the same numbers as the demo eval.
+- **Demo:** `demo load` also writes the made-up yesterday's journal page, so Open journal shows a file. `docs/demo/script.md` is the click script for the screen recording.
+- **Terminals in tmux.** WezTerm's title is only `tmux`, so terminal time said nothing ("You were working on WezTerm and tmux"). When a terminal's title is `tmux` or empty, the collector asks tmux for the active pane of the most recently used client and records `<command> — <repo>` (repo = the git root's folder name, only inside an allowed root; the path is never stored). The word checks run on that text. A tab titled by its shell or folder is a plain shell, not tmux, so it is left alone (narrower than "a bare shell name" in the brief, on purpose: such a tab would be misattributed to whatever tmux pane was used last).
+- **A topic is a subject, never an app.** A model topic made only of app words is rejected (`topic is an app`); code-made blocks reach the note model as an app (plus their window part when it names something), not as a topic; a note sentence or day bullet must be grounded by a word that is not an app name; when the last two hours hold only app names, the model is not asked and the code says "Mostly in WezTerm for 2 min.".
+
+## First real run (2026-10-25, from 00:40 IST)
+
+What `munshi stats` showed, and what it changed:
+
+- **Profile check:** 2 Firefox app processes, 0 matching on the command line (no profile flag in either), 0 on the folder name. After the folder check and the owner's folder name in the config: 2 processes, exactly 1 matching; the owner confirmed it is the work profile.
+- **No memory in stats:** `ps -o rss,%cpu=` keeps the first header, so parsing failed; one `-o name=` per column fixed it (with a test on the real `ps`).
+- **A blocked repo name in the project list:** 13 repos under the root, 12 git events: one repo's name holds the work word, so its events were dropped, but `known_projects` still offered its folder name to the model. Fixed before the writer wrote a single real slot.
+- **Card footer:** the owner saw Copy for timesheet under the footer buttons. It did not reproduce at 380 × 560 in the browser or in the app window (measured through the JS bridge), so the layout was made defensive and the self-test now measures it.
+- **Screenshots by window id** need Screen Recording permission for the terminal on this macOS (`could not create image from window`); the owner chose to skip them and take window shots while recording the demo video.
+- Accessibility was already granted to WezTerm; titles are read.
+- **Git noise at start-up:** each start of the app reported every repo as changed (the scanner had no memory), and the slot then held a dozen git items for repos nobody was working in; the model answered with a block per git item (12 `no window time` rejections in one slot). The scanner now starts from the last stored git event of each repo.
+- **tmux context works:** after the restart at 01:04, `stats` counted 45 polls in 35 minutes whose terminal title came from the tmux pane.
+- **Memory and CPU:** right after start RSS 79–91 MB and 34–41 % CPU (start-up, ps's decaying average); at the 10-minute mark 32 MB and 1.1 % CPU.
+
+## Tuning on real data (numbers only)
+
+`uv run munshi eval --real` rewrites today's finished slots in a scratch copy of the store. The real day was young (2–3 slots, two of them holding the start-up git burst), so the real numbers are small and noisy; every change was also checked on the 53 demo slots. No code check was loosened.
+
+| Step | Real slots: accepted · rejected · fallback | Real time labelled by the model | Real s/slot (mean) | Demo: accepted · rejected · fallback | Demo time by model | Demo s/slot |
+|---|---|---|---|---|---|---|
+| Before (phase-A prompt and schema) | 2 slots: 3 · 4 · 3 | 19 % | 10.7 | 64 · 0 · 9 | 96 % | 3.2 |
+| Topic from the block's own words, never an app name | 2 slots: 3 · 14 · 2 | 74 % | 19.3 | n/a | n/a | n/a |
+| Window ids as `evidence` (≥ 1), git/file ids as `extra` | 2 slots: 4 · 6 · 3 | 73 % | 9.6 | 61 · 6 · 11 | 95 % | 3.6 |
+| Git items only with commits or a repo the windows were in, "never repeat a window id" | 3 slots: 4 · 7 · 6 | 65 % | 6.7 | 60 · 3 · 12 | 95 % | 3.1 |
+
+- The rejections that remain are `no window time` (a block that re-cites a window already taken by an earlier block) and `topic is an app` (terminal stretches recorded before the tmux fix, titled only `tmux`, where no honest topic exists); both fall back to code, which is the point.
+- Dropping unrelated git items lowered the model's share on the burst slots (78 % → 65 % with the third slot): those git items gave the model repo words to label terminal windows with, but a repo none of the windows were in cannot truthfully label them. Correctness over coverage; the numbers cannot show which labels were right, so the owner's eyes on the card decide.
+- Seconds per slot fell from 19.3 (one block per git item) to 6.7 on real slots.
+
+## The "untested on real macOS" list, on the real run
+
+| Item | How it was checked | Result |
+|---|---|---|
+| Front app from the main thread | `stats` polls follow the owner's app switches; a 1 s probe through `MacWindowSource` saw each switch within a second | ✓ |
+| Window titles (Accessibility) | WezTerm already had Accessibility; the 45 `tmux context` polls only happen when the title `tmux` was read through AX | ✓ |
+| Idle and away | away events after 3 min idle, including the owner's 4-minute check | ✓ |
+| Git scan of the root | 13 repos read, 0 failures, 0 detached HEAD; the one repo whose name holds the work word is dropped; start-up burst fixed | ✓ (fixed) |
+| Spotlight files | the real `mdfind` query runs and finds recent files; all of them sat inside git repos, so 0 file events, as designed | ✓ |
+| Collector next to pywebview for hours | polls are continuous: the counters add up to the wall-clock time since start | ✓ |
+| Ignore list (Slack) | `ignored app` polls when the owner used Slack; owner: no Slack in the card | ✓ |
+| Title words | unit tests with `acme`; no real page with the word was opened | tests only |
+| Process words (work Firefox) | profile folder check: 1 of 2 Firefox processes matches, owner confirmed it is the work one | see below |
+| Private windows | unit tests only (not asked of the owner) | tests only |
+| Buddy, card, Esc, drag, no Dock icon | owner by hand; `start --demo --self-test` in the real window server | ✓ |
+| Pause and resume from the card | owner: greyed buddy with the pause mark; `paused` polls stopped recording | ✓ |
+| Forget last hour | git and window event counts dropped between two `stats` runs while the counters kept counting | ✓ (inferred) |
+| Writer every 15 min | `last writer run` and `slots written` advance every 15 min | ✓ |
+| Midnight split | end-to-end test with fakes (`tests/test_midnight.py`) | ✓ |
