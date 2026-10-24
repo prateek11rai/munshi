@@ -128,3 +128,19 @@ def test_file_scan_failure_is_skipped(tmp_path):
         return subprocess.CompletedProcess(cmd, 1, "", "err")
 
     assert FileScanner(run=run).scan([tmp_path], NOW - 300, NOW) == []
+
+
+def test_git_scan_after_a_restart_reports_only_real_changes(tmp_path):
+    root = make_tree(tmp_path)
+    first = GitScanner(run=FakeRun(git_outputs()), git="/usr/bin/git")
+    [event] = first.scan([root], since=NOW - 300, now=NOW)
+    stored = {"tidepool": {**event.detail, "commits": []}}
+    quiet = {**git_outputs(), ("tidepool", "log"): ""}
+    restarted = GitScanner(run=FakeRun(quiet), git="/usr/bin/git", previous=stored.get)
+    assert restarted.scan([root], since=NOW, now=NOW + 300) == []
+    moved = {**quiet, ("tidepool", "status"): " M src/cache.py\0"}
+    again = GitScanner(run=FakeRun(moved), git="/usr/bin/git", previous=stored.get)
+    [changed] = again.scan([root], since=NOW, now=NOW + 300)
+    assert changed.detail["dirty"] == 1
+    fresh = GitScanner(run=FakeRun(quiet), git="/usr/bin/git", previous=lambda name: None)
+    assert len(fresh.scan([root], since=NOW, now=NOW + 300)) == 1

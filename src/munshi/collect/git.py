@@ -53,15 +53,23 @@ def find_repos(roots: list[Path], depth: int = 2) -> list[Path]:
 class GitScanner:
     """Reads branch, new commits and uncommitted file names from repos under the roots."""
 
-    def __init__(self, run: Runner = subprocess.run, git: str | None = None) -> None:
+    def __init__(
+        self,
+        run: Runner = subprocess.run,
+        git: str | None = None,
+        previous: Callable[[str], dict[str, Any] | None] | None = None,
+    ) -> None:
         """Create the scanner.
 
         Args:
             run: subprocess.run or a stand-in for tests.
             git: Path of the git binary; found on PATH when None.
+            previous: Returns the last stored state of a repo by name, so a restart
+                does not report every repo as changed.
         """
         self.run = run
         self.git = git or shutil.which("git") or "/usr/bin/git"
+        self.previous = previous
         self.last: dict[str, dict[str, Any]] = {}
 
     def _git(self, repo: Path, *args: str) -> str:
@@ -125,6 +133,8 @@ class GitScanner:
                 log.warning("git scan skipped a repo: %s", type(exc).__name__)
                 continue
             key = str(repo)
+            if key not in self.last and self.previous is not None:
+                self.last[key] = self.previous(repo.name) or {}
             changed = snap["commits"] or {k: snap[k] for k in ("branch", "dirty", "files")} != {
                 k: self.last.get(key, {}).get(k) for k in ("branch", "dirty", "files")
             }

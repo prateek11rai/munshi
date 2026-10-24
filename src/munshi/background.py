@@ -45,12 +45,18 @@ def collector_thread(home: Path, config: Config, stop: threading.Event) -> threa
     from munshi.collect.macos import MacWindowSource
     from munshi.collect.tmux import TmuxPane
 
+    store = Store.at_home(home)
+
+    def previous(repo: str) -> dict | None:
+        event = store.last_event(("git",), repo=repo)
+        return event.detail if event else None
+
     collector = Collector(
-        Store.at_home(home),
+        store,
         config,
         MacWindowSource(),
         SystemClock(),
-        (GitScanner(), FileScanner()),
+        (GitScanner(previous=previous), FileScanner()),
         tmux=TmuxPane(config.roots()),
     )
     return threading.Thread(target=collector.run, args=(stop,), daemon=True, name="collector")
