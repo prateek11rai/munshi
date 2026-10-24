@@ -77,9 +77,15 @@ DevRelay is the MCP gateway (plus skills) that saves agent sessions to DEV. The 
 
 ## Step 7 · Session B (owner decides when)
 
-- DEV accepts agent sessions only from these tools: `antigravity_cli`, `claude_code`, `codex`, `gemini_cli`, `github_copilot`, `opencode`, `pi` (DEV's `AgentSession::TOOL_NAMES`). Cursor isn't one of them, so a submit with `tool_name: "cursor"` will most likely be refused. **Never label this chat as another tool.**
-- When the owner asks: they export this chat from Cursor (chat menu → Export) to a Markdown file outside the repo. Turn it into DevRelay's normalized JSON (owner messages, your visible replies, short tool calls; drop long tool output; redact home paths, usernames, the machine name, emails except noreply, hosts, keys and anything from `~/.munshi`), show the owner a summary of what was redacted, and only on their word try `submit_agent_session` with `tool_name: "cursor"`. If DEV refuses it, keep the curated Markdown for the owner to link from the post.
-- Session A (`1177`) is already on DEV, private. The post embeds it with `{% agent_session 1177 %}`.
+- DEV accepts agent sessions only from these tools: `antigravity_cli`, `claude_code`, `codex`, `gemini_cli`, `github_copilot`, `opencode`, `pi`. There is no Cursor option. **The owner checked with the organizers: this Cursor chat is submitted with `tool_name: "opencode"`, and that is said openly.**
+- When the owner asks: they export this chat from Cursor (chat menu → Export) to a Markdown file outside the repo. Turn it into DevRelay's normalized JSON (owner messages, your visible replies, short tool calls; drop long tool output; redact home paths, usernames, the machine name, emails except noreply, hosts, keys and anything from `~/.munshi`). Show the owner a summary of what was redacted.
+- On the owner's word, submit it with `submit_agent_session` (or `DEVRELAY_DISABLE_AUTO_UPDATE=1 DEVRELAY_SKILLS_AUTO_SYNC=0 ~/.devrelay/bin/devrelay sessions submit --tool opencode …`):
+  - `tool_name`: `opencode`
+  - title: `Munshi, session B: real collection and tuning on a personal Mac (Cursor + Grok, tagged opencode)`
+  - `metadata`: `{"tool_name": "opencode", "recorded_with": "Cursor desktop agent", "model": "<the Grok model used>", "label_note": "DEV has no Cursor option; tagged opencode with the organizers' OK"}`
+  - It stays private; the owner publishes it on DEV.
+- The post says it in one line next to the embed, e.g. "Session B ran in Cursor with Grok; DEV has no Cursor label yet, so it's tagged opencode (cleared with the organizers)."
+- Session A (`1177`) is already on DEV, private. The post embeds both: `{% agent_session 1177 %}` and session B's id.
 
 ## Rules
 
