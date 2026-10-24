@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Munshi privacy gates</title>
+<link rel="stylesheet" href="brand.css">
+</head>
+<body>
+<script src="diagram.js"></script>
+<script>
+const PITCH = 108, BOX = 78;
+const rows = [];
+let y = 170;
+
+function lane(text) {
+  y += 34;
+  D.text(80, y, text, "label");
+  y += 24;
+}
+
+// lines: strings (body) or [string, cls]; kind: "gate" or "stored".
+function gate(name, outcome, lines, kind = "gate") {
+  const stored = kind === "stored";
+  const b = D.box(80, y, 360, BOX, {
+    title: name, align: "middle", top: 50, cls: stored ? "bar" : "",
+  });
+  const prev = rows[rows.length - 1];
+  if (prev && prev.lane === laneId) D.arrow([[260, prev.b + 2], [260, b.y - 2]], { color: stored ? "bar" : "muted" });
+  if (outcome) {
+    D.arrow([[b.r + 2, b.cy], [612, b.cy]], { color: "warn" });
+    D.text(530, b.cy - 12, outcome, "mw", "middle");
+  }
+  const top = b.cy - ((lines.length - 1) * 32) / 2 + 8;
+  lines.forEach((line, i) => {
+    const [str, cls] = Array.isArray(line) ? line : [line, "b"];
+    D.text(stored ? 470 : 636, top + i * 32, str, cls);
+  });
+  rows.push({ ...b, lane: laneId });
+  y += PITCH;
+}
+
+let laneId = 0;
+const H = 1788;
+D.start(1600, H, "Where private things are dropped",
+  "Every gate runs in code, in this order, before anything is written to disk. The example word is acme.");
+
+laneId = 1;
+lane("front window · every 10 s");
+gate("paused", "not recorded", ["Pause stops everything: windows, git and files, until it ends.", ["munshi pause --for 1h", "m"]]);
+gate("own window", "not recorded", ["The munshi's own buddy and card, matched by process id."]);
+gate("ignored app", "not recorded", [
+  "1Password, Bitwarden, Keychain Access, System Settings, the lock screen,",
+  "plus your list. Or record only the apps you list.",
+  ['[apps] ignore = ["Slack"]', "m"],
+]);
+gate("title word", "not recorded", [
+  "A window whose title or app name has the word, checked before redaction.",
+  ['"Q4 plan · acme — Google Docs"  →  not recorded', "mt"],
+]);
+gate("process word", "not recorded", [
+  "An app whose command line has the word, or a Firefox profile folder with it:",
+  "one browser profile stays out while another is recorded.",
+  [".../Firefox/Profiles/k3j9.acme/  →  not recorded", "mt"],
+]);
+gate("private window", "app name only", [
+  "Private Browsing, Incognito and InPrivate windows lose their title.",
+  ['"New Incognito Tab"  →  Google Chrome, no title', "mt"],
+]);
+gate("redaction", "replaced", [
+  "Emails, links, tokens and long numbers are cut from what is kept.",
+  ["sam@example.org → [email]   https://docs.python.org/3/ → docs.python.org", "mt"],
+  ["24+ letters and digits → [token]   6+ digits → [number]", "mt"],
+]);
+gate("stored", null, ["app, redacted title, start, end", ["SQLite in ~/.munshi, folder readable only by you", "m"]], "stored");
+
+laneId = 2;
+y += 10;
+lane("git, files, tmux pane · under allowed roots only");
+gate("allowed roots", "not scanned", [
+  "Nothing is scanned until you list folders; the list starts empty.",
+  "A tmux pane gives its command and repo name, never the path.",
+  ['allowed_roots = ["~/code"]', "m"],
+]);
+gate("redaction", "replaced", [
+  "The same rules for branches, commit subjects and file names.",
+  ["git gives names only: no file contents, no diffs", "m"],
+]);
+gate("title word", "dropped", [
+  "Repos, branches, commit subjects and file names with the word.",
+  ['"acme-export" repo, "fix acme login" commit  →  dropped', "mt"],
+]);
+gate("stored", null, ["branch, commit subjects, changed file names", ["scanned every 5 min: git, then Spotlight", "m"]], "stored");
+
+laneId = 3;
+y += 10;
+lane("the model");
+gate("local model", "refused", [
+  "The Ollama URL must be localhost, 127.0.0.1 or ::1, unless you set",
+  "allow_remote_model = true on purpose.",
+  ['ollama_url = "http://gpu-box:11434"  →  refused', "mt"],
+]);
+
+D.check();
+if (y + 20 !== H) console.log(`height: content ends at ${y + 20}`);
+</script>
+</body>
+</html>

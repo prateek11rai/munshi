@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Munshi writer run</title>
+<link rel="stylesheet" href="brand.css">
+</head>
+<body>
+<script src="diagram.js"></script>
+<script>
+const H = 1730;
+D.start(1600, H, "One writer run",
+  "Every 15 minutes, for each finished slot. The model labels; code checks every word and makes every number.");
+
+// Participants and lifelines.
+const S = 150, W = 430, G = 760;
+for (const x of [S, W, G]) D.el("line", { x1: x, y1: 226, x2: x, y2: H - 30, class: "lifeline" });
+D.box(60, 150, 180, 76, { title: "store", lines: [["SQLite", "m"]], align: "middle", top: 34, afterTitle: 28 });
+D.box(330, 150, 200, 76, { title: "writer", lines: [["every 15 min", "m"]], align: "middle", top: 34, afterTitle: 28 });
+D.box(630, 150, 260, 76, { title: "Gemma 4 e4b", lines: [["Ollama · local", "ma"]], cls: "accent", align: "middle", top: 34, afterTitle: 28 });
+D.el("rect", { x: W - 8, y: 262, width: 16, height: H - 300, class: "activation" });
+D.text(950, 196, "example from the demo day", "label");
+
+const L = W - 10, R = W + 10;
+function call(from, to, y, text, sub, dashed) {
+  D.arrow([[from, y], [to, y]], { dashed, color: dashed ? "muted" : "text" });
+  const mid = (from + to) / 2;
+  D.text(mid, y - 12, text, "b", "middle");
+  if (sub) D.text(mid, y + 30, sub, "m", "middle");
+}
+function self(y, text, sub) {
+  D.arrow([[R, y], [W + 64, y], [W + 64, y + 44], [R + 2, y + 44]], { color: "text" });
+  D.text(W + 80, y + 28, text, "b");
+  if (sub) D.text(W + 80, y + 60, sub, "m");
+}
+
+// 1. Read a slot.
+call(L, S + 2, 300, "unwritten slots");
+call(S + 2, L, 360, "one slot's events", null, true);
+self(400, "compact");
+D.box(950, 372, 610, 180, {
+  title: "the slot, compacted",
+  lines: [
+    ["e1  Code · cache.py — tidepool · 9 min", "mt"],
+    ["e2  Google Chrome · SQLite WAL mode · 4 min", "mt"],
+    ["e3  git · fix: cache tide chart per station", "mt"],
+    ["repeats merged, away time dropped", "m"],
+  ],
+});
+
+// 2. Ask the model.
+call(R, G - 2, 610, "prompt", "items, projects, topics");
+D.box(950, 580, 610, 150, {
+  title: "prompt",
+  lines: [
+    ['projects: ["lantern", "tidepool", "Other"]', "mt"],
+    ['topics: ["tide-chart caching", …]', "mt"],
+    ["JSON schema · temperature 0", "m"],
+  ],
+});
+call(G - 2, R, 790, "JSON reply", null, true);
+D.box(950, 756, 610, 184, {
+  title: "reply",
+  lines: [
+    ['{"evidence": ["e1", "e3"],', "mt"],
+    [' "project": "tidepool",', "mt"],
+    [' "topic": "tide-chart caching",', "mt"],
+    [' "summary": "Cached tide chart per station"}', "mt"],
+  ],
+});
+
+// 3. Check every block.
+self(990, "check", "each block");
+D.box(950, 964, 610, 214, {
+  title: "code checks, every block",
+  cls: "accent",
+  lines: [
+    "evidence ids exist in this slot",
+    "project is known (code's own wins)",
+    "topic ≤ 4 words, not an app, grounded",
+    "summary ≤ 14 words, words in evidence",
+    "digits stripped; times from evidence",
+  ],
+});
+
+// 4. Accept or fall back.
+const FY = 1212;
+D.el("rect", { x: 70, y: FY, width: 830, height: 196, class: "frame" });
+D.el("path", { d: `M70 ${FY}h74v24l-12 14h-62Z`, class: "frame" });
+D.text(84, FY + 27, "alt", "mt");
+D.text(W + 22, FY + 30, "[pass]", "ma");
+call(L, S + 2, FY + 76, "model block");
+D.el("line", { x1: 70, y1: FY + 104, x2: 900, y2: FY + 104, class: "divider" });
+D.text(W + 22, FY + 138, "[fail, error, timeout]", "m");
+call(L, S + 2, FY + 176, "code block");
+D.box(950, FY, 610, 196, {
+  title: "blocks stored",
+  lines: [
+    "start, end, minutes from the evidence",
+    "code block: <app> · <title>",
+    "slot marked written, with counts",
+    ["source: model or fallback", "m"],
+  ],
+});
+
+// 5. The "where was I" note.
+const NY = 1460;
+call(R, G - 2, NY, "where-note prompt", "last two hours of blocks");
+call(G - 2, R, NY + 100, "text + cited ids", null, true);
+self(NY + 130, "check");
+call(L, S + 2, NY + 230, "where note");
+D.box(950, NY - 30, 610, 230, {
+  title: "where was I",
+  lines: [
+    ['{"text": "You were tightening the', "mt"],
+    ['  tide-chart caching in tidepool …",', "mt"],
+    [' "cites": ["b12", "b13"]}', "mt"],
+    ["≤ 2 sentences, ≤ 40 words, ids exist,", "m"],
+    ["words in the cited blocks; else code", "m"],
+  ],
+});
+
+D.check();
+</script>
+</body>
+</html>

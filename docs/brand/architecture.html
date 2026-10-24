@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Munshi architecture</title>
+<link rel="stylesheet" href="brand.css">
+</head>
+<body>
+<script src="diagram.js"></script>
+<script>
+D.start(1600, 950, "How Munshi works",
+  "Everything runs on your Mac. The only network call goes to Ollama on 127.0.0.1.");
+
+// The machine boundary.
+D.el("rect", { x: 60, y: 150, width: 1500, height: 760, rx: 18, class: "boundary" });
+D.el("rect", { x: 78, y: 136, width: 506, height: 28, class: "patch" });
+D.text(88, 157, "your Mac · nothing crosses this line", "label");
+
+// Row 1: collector → events → writer.
+const col = D.box(90, 200, 360, 310, {
+  title: "collector",
+  lines: [
+    "window + title, every 10 s",
+    "idle: away after 3 min",
+    "tmux pane: command, repo",
+    "git: branch, commit subjects",
+    "changed file names",
+    ["git + files every 5 min", "m"],
+    ["privacy gates first", "ma"],
+  ],
+});
+const ev = D.cyl(500, 260, 160, 160, "events", "SQLite");
+D.arrow([[col.r + 2, 340], [ev.x - 2, 340]]);
+
+D.box(710, 200, 830, 370, { title: "writer · every 15 min" });
+const slot = D.box(735, 290, 190, 100, { title: "slot", lines: [["ids e1, e2 …", "m"]], align: "middle", top: 42 });
+const model = D.box(965, 290, 240, 100, { title: "Gemma 4 e4b", lines: [["Ollama · local", "ma"]], cls: "accent", align: "middle", top: 42 });
+const checks = D.box(1245, 290, 260, 100, { title: "code checks", lines: [["ids, project, words", "m"]], align: "middle", top: 42 });
+D.arrow([[ev.r + 2, 340], [slot.x - 2, 340]]);
+D.arrow([[slot.r + 2, 340], [model.x - 2, 340]]);
+D.arrow([[model.r + 2, 340], [checks.x - 2, 340]]);
+
+const ok = D.box(1175, 450, 170, 90, { title: "accepted", lines: [["model label", "m"]], cls: "bar", align: "middle", top: 38 });
+const fb = D.box(1365, 450, 170, 90, { title: "fallback", lines: [["code label", "m"]], align: "middle", top: 38 });
+D.arrow([[ok.cx, checks.b + 2], [ok.cx, ok.y - 2]], { color: "bar", label: { text: "pass", x: ok.cx + 12, y: 428 } });
+D.arrow([[fb.cx, checks.b + 2], [fb.cx, fb.y - 2]], { label: { text: "fail", x: fb.cx + 12, y: 428 } });
+D.text(735, 462, "times, hours, counts: code", "mt");
+D.text(735, 494, "project, topic, summary: model", "ma");
+D.text(735, 526, "fail, error, timeout: code-made", "m");
+
+// Nothing leaves: a remote model URL is refused.
+D.arrow([[model.cx, model.y - 2], [model.cx, 158]], { color: "warn", dashed: true, head: false });
+D.el("path", { d: `M${model.cx - 11} 139L${model.cx + 11} 161M${model.cx + 11} 139L${model.cx - 11} 161`, class: "edge edge-warn" });
+D.text(model.cx + 24, 134, "a remote model URL is refused", "mw");
+
+// Row 2: blocks → notes → what you see.
+const blocks = D.cyl(1190, 650, 320, 160, "blocks", "project · topic · time");
+D.arrow([[ok.cx, ok.b + 2], [ok.cx, 652]], { color: "bar" });
+D.arrow([[fb.cx, fb.b + 2], [fb.cx, 652]]);
+const notes = D.box(780, 650, 340, 160, {
+  title: "notes",
+  lines: ["where was I: 2 sentences", "the day: 3 to 5 lines", ["cite block ids; checked", "m"]],
+});
+D.arrow([[blocks.x - 2, 730], [notes.r + 2, 730]]);
+
+D.box(90, 630, 640, 200, { cls: "ghost" });
+D.text(112, 666, "what you see", "label");
+D.box(110, 690, 180, 120, { title: "card", lines: [["one click", "m"]], align: "middle", top: 50 });
+D.box(305, 690, 220, 120, { title: "journal", lines: [["Markdown, daily", "m"]], align: "middle", top: 50 });
+D.box(540, 690, 170, 120, { title: "hours", lines: [["CSV, daily", "m"]], align: "middle", top: 50 });
+D.arrow([[notes.x - 2, 730], [732, 730]]);
+D.arrow([[blocks.cx, blocks.b + 2], [blocks.cx, 880], [410, 880], [410, 832]]);
+D.text(760, 868, "timeline + hours: summed by code", "m");
+
+D.check();
+</script>
+</body>
+</html>

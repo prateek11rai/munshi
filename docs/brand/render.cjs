@@ -29,6 +29,7 @@ function option(name, fallback) {
     const [html, png, width, height] = PAGES[name];
     // Diagrams (height 0) take the height of their content.
     const page = await browser.newPage({ viewport: { width, height: height || 400 }, deviceScaleFactor: scale });
+    page.on("console", (msg) => console.log(`  ${name}: ${msg.text()}`));
     await page.route(/^(?!file:)/, (route) => route.abort());
     await page.goto("file://" + path.join(__dirname, html));
     const target = path.join(out, scale === 1 ? png : png.replace(/\.png$/, `@${scale}x.png`));
