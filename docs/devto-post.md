@@ -15,7 +15,7 @@ cover_image:
 
 A munshi is the clerk who keeps the register: spectacles, a cap, a ledger, and a quiet record of what happened today. Munshi is that clerk as a small buddy on my Mac's desktop.
 
-{{OWNER_WHY}}
+> At the end of every week I couldn't say where my hours went. My timesheet was guesswork, and I didn't want a cloud app watching my screen to fix that.
 
 It saves three chores I am bad at: writing a status update, rebuilding yesterday from memory before standup, and guessing my hours for the timesheet. Anyone who gives a standup or fills a timesheet gets to be lazier. So does anyone who sits down after lunch and wonders what they were doing before it.
 
