@@ -1,17 +1,15 @@
 import argparse
 import logging
-import platform
 import re
 import sys
 import threading
-import time
 from datetime import date, timedelta
 from pathlib import Path
 
 from munshi import __version__, control, demo
 from munshi.config import Config, ConfigError, demo_home, from_raw, load_config, real_home
 from munshi.store import Store
-from munshi.timefmt import Clock, FakeClock, SystemClock, at, day_of, hm
+from munshi.timefmt import Clock, SystemClock, day_of, hm
 from munshi.write import journal
 from munshi.write.hours import day_hours, timesheet, to_csv
 from munshi.write.model import Ollama
@@ -124,7 +122,7 @@ def model_or_none(config: Config, name: str | None = None) -> Ollama | None:
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
-    """Print ✓/✗ checks. Reads only booleans and versions; creates nothing.
+    """Print ✓/✗ setup checks.
 
     Args:
         args: Parsed arguments.
@@ -132,52 +130,9 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     Returns:
         0.
     """
-    home = demo_home() if args.demo else real_home()
-    config_path = home / "config.toml"
-    config = from_raw({})
-    if config_path.exists():
-        try:
-            config = load_config(home)
-        except ConfigError:
-            print("✗ config file has a bad value")
+    from munshi.doctor import doctor
 
-    def line(ok: bool, text: str) -> None:
-        print(f"{'✓' if ok else '✗'} {text}")
-
-    line(sys.version_info >= (3, 13), f"Python {platform.python_version()}")
-    mac = platform.mac_ver()[0]
-    line(bool(mac), f"macOS {mac}" if mac else "macOS (not macOS: the collector will not run)")
-    reachable, present = Ollama.from_config(config).status()
-    line(reachable, "Ollama reachable" if reachable else "Ollama not reachable (ollama serve)")
-    line(present, f"model {config.model} present" if present else f"model {config.model} missing")
-    if mac:
-        from munshi.collect.macos import accessibility_granted
-
-        granted = accessibility_granted()
-        line(
-            granted,
-            "Accessibility granted"
-            if granted
-            else "Accessibility not granted: app names only, no titles",
-        )
-    roots = len(config.allowed_roots)
-    line(
-        roots > 0,
-        f"{roots} allowed roots" if roots else "no allowed roots: git and file scanning is off",
-    )
-    line(home.is_dir(), "data dir exists" if home.is_dir() else "data dir not created yet")
-    line(
-        config_path.exists(),
-        f"config {'at' if config_path.exists() else 'will be at'} {_short(config_path)}",
-    )
-    return 0
-
-
-def _short(path: Path) -> str:
-    try:
-        return "~/" + str(path.relative_to(Path.home()))
-    except ValueError:
-        return str(path)
+    return doctor(args.demo)
 
 
 def cmd_write(args: argparse.Namespace) -> int:
@@ -321,6 +276,8 @@ def cmd_eval(args: argparse.Namespace) -> int:
     Returns:
         0, or 1 when the model is not available.
     """
+    from munshi.evals import run_eval
+
     if not args.demo:
         print("eval runs on the demo days; add --demo.")
         return 1
@@ -329,39 +286,8 @@ def cmd_eval(args: argparse.Namespace) -> int:
     model = model_or_none(config, args.model)
     if model is None:
         return 1
-    today = date.today()
-    store = Store(":memory:")
-    store.set("known_repos", ["lantern", "tidepool"])
-    demo.add_day(store, today - timedelta(days=1), demo.YESTERDAY, demo.GIT["yesterday"])
-    demo.add_day(store, today, demo.TODAY, demo.GIT["today"])
-    clock = FakeClock(at(today, demo.DEMO_NOW))
-    writer = Writer(store, config, clock, model)
-    pending = writer.pending(clock.now())[: args.slots or None]
-    from munshi.write.writer import Result
-
-    result = Result()
-    began = time.monotonic()
-    for n, start in enumerate(pending, 1):
-        writer.write_slot(start, result)
-        print(f"\r{n}/{len(pending)} slots", end="", flush=True)
-    print()
-    total = result.accepted + result.rejected
-    secs = result.seconds or [0.0]
-    print(f"model {model.name} over {result.slots} demo slots")
-    print(
-        f"blocks accepted {result.accepted} · rejected {result.rejected}"
-        f" · fallback {result.fallback}"
-    )
-    if total:
-        print(f"acceptance {100 * result.accepted / total:.0f}% of model blocks")
-    blocks = max(1, result.accepted + result.fallback)
-    print(f"fallback rate {100 * result.fallback / blocks:.0f}% of blocks")
-    print(f"seconds per slot: mean {sum(secs) / len(secs):.1f} · max {max(secs):.1f} · "
-          f"total {time.monotonic() - began:.0f}")  # fmt: skip
-    for reason, count in sorted(result.reasons.items(), key=lambda kv: -kv[1]):
-        print(f"  rejected: {reason} × {count}")
-    if result.model_errors:
-        print(f"  model errors: {result.model_errors}")
+    report = run_eval(config, model, args.slots)
+    print("\n".join(report.lines()))
     return 0
 
 
@@ -376,7 +302,9 @@ def cmd_demo(args: argparse.Namespace) -> int:
     """
     if args.action == "load":
         home = demo.load()
-        print(f"Loaded two made-up days into {_short(home)}.")
+        from munshi.doctor import short_path
+
+        print(f"Loaded two made-up days into {short_path(home)}.")
     else:
         demo.clear()
         print("Cleared the demo home.")

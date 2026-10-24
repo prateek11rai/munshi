@@ -1,8 +1,11 @@
 import json
 import sqlite3
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from munshi.records import Block, Event, Note, block_from, event_from, note_from
+
+__all__ = ["Block", "Event", "Note", "Store"]
 
 SCHEMA_VERSION = 1
 
@@ -60,61 +63,6 @@ CREATE TABLE IF NOT EXISTS state (
     value TEXT NOT NULL
 );
 """
-
-
-@dataclass
-class Event:
-    """One recorded fact: a window, an away stretch, a git snapshot or a changed file."""
-
-    kind: str
-    start: float
-    end: float
-    app: str | None = None
-    title: str | None = None
-    repo: str | None = None
-    detail: dict[str, Any] = field(default_factory=dict)
-    id: int | None = None
-
-    @property
-    def seconds(self) -> float:
-        """Length of the event.
-
-        Returns:
-            Seconds, never negative.
-        """
-        return max(0.0, self.end - self.start)
-
-
-@dataclass
-class Block:
-    """A labelled stretch of work inside one 15-minute slot."""
-
-    slot: float
-    start: float
-    end: float
-    active: float
-    project: str
-    topic: str
-    summary: str
-    source: str
-    evidence: list[int] = field(default_factory=list)
-    id: int | None = None
-
-
-@dataclass
-class Note:
-    """A written note: "where" (where was I) or "day" (a day's summary)."""
-
-    kind: str
-    day: str
-    created: float
-    span_start: float
-    span_end: float
-    text: str
-    source: str
-    cites: list[int] = field(default_factory=list)
-    facts: dict[str, Any] = field(default_factory=dict)
-    id: int | None = None
 
 
 class Store:
@@ -226,7 +174,7 @@ class Store:
             sql += f" AND kind IN ({','.join('?' * len(kinds))})"
             params += list(kinds)
         rows = self.db.execute(sql + " ORDER BY start, id", params).fetchall()
-        return [_event(row) for row in rows]
+        return [event_from(row) for row in rows]
 
     def last_event(self, kinds: tuple[str, ...] = (), repo: str | None = None) -> Event | None:
         """Return the most recent event of some kinds.
@@ -246,7 +194,7 @@ class Store:
             sql += " AND repo = ?"
             params.append(repo)
         row = self.db.execute(sql + " ORDER BY end DESC, id DESC LIMIT 1", params).fetchone()
-        return _event(row) if row else None
+        return event_from(row) if row else None
 
     def repos(self) -> list[str]:
         """Return every repo name seen in git events.
@@ -318,7 +266,7 @@ class Store:
         rows = self.db.execute(
             "SELECT * FROM blocks WHERE end > ? AND start < ? ORDER BY start, id", (start, end)
         ).fetchall()
-        return [_block(row) for row in rows]
+        return [block_from(row) for row in rows]
 
     def mark_slot(
         self, start: float, written: float, accepted: int = 0, rejected: int = 0, fallback: int = 0
@@ -409,7 +357,7 @@ class Store:
             sql += " AND day = ?"
             params.append(day)
         row = self.db.execute(sql + " ORDER BY created DESC LIMIT 1", params).fetchone()
-        return _note(row) if row else None
+        return note_from(row) if row else None
 
     # Forget
 
@@ -477,46 +425,3 @@ class Store:
                 "INSERT OR REPLACE INTO state (key, value) VALUES (?, ?)", (key, json.dumps(value))
             )
         self.db.commit()
-
-
-def _event(row: sqlite3.Row) -> Event:
-    return Event(
-        kind=row["kind"],
-        start=row["start"],
-        end=row["end"],
-        app=row["app"],
-        title=row["title"],
-        repo=row["repo"],
-        detail=json.loads(row["detail"]),
-        id=row["id"],
-    )
-
-
-def _block(row: sqlite3.Row) -> Block:
-    return Block(
-        slot=row["slot"],
-        start=row["start"],
-        end=row["end"],
-        active=row["active"],
-        project=row["project"],
-        topic=row["topic"],
-        summary=row["summary"],
-        source=row["source"],
-        evidence=json.loads(row["evidence"]),
-        id=row["id"],
-    )
-
-
-def _note(row: sqlite3.Row) -> Note:
-    return Note(
-        kind=row["kind"],
-        day=row["day"],
-        created=row["created"],
-        span_start=row["span_start"],
-        span_end=row["span_end"],
-        text=row["text"],
-        source=row["source"],
-        cites=json.loads(row["cites"]),
-        facts=json.loads(row["facts"]),
-        id=row["id"],
-    )

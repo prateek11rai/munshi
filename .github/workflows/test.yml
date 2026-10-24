@@ -1,0 +1,53 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "**/*.md", "**/*.png", "**/*.jpg", "**/*.jpeg", "**/*.gif", "**/*.webp"]
+  pull_request:
+    paths-ignore: ["docs/**", "**/*.md", "**/*.png", "**/*.jpg", "**/*.jpeg", "**/*.gif", "**/*.webp"]
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install uv
+        run: python -m pip install uv==0.12.3
+      - run: uv sync --frozen
+      - run: uv run ruff check
+      - run: uv run ruff format --check
+      - run: uv run pytest -q -m "not model"
+
+  model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install uv
+        run: python -m pip install uv==0.12.3
+      - run: uv sync --frozen
+      - name: Install Ollama with the runner's Homebrew
+        run: /home/linuxbrew/.linuxbrew/bin/brew install ollama
+      - name: Start Ollama and pull the model
+        run: |
+          ollama=/home/linuxbrew/.linuxbrew/bin/ollama
+          nohup "$ollama" serve > "$RUNNER_TEMP/ollama.log" 2>&1 &
+          for _ in $(seq 1 30); do "$ollama" list > /dev/null 2>&1 && break; sleep 1; done
+          "$ollama" pull gemma4:e4b
+      - name: Model test
+        run: uv run pytest -q -m model
