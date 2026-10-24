@@ -17,6 +17,7 @@ STOP_WORDS = {
     "under", "until", "very", "were", "what", "when", "where", "which", "while", "with",
     "work", "worked", "working", "would", "your", "you", "time", "today", "various",
 }  # fmt: skip
+SHORT_WORDS = {"the", "and", "for", "not", "but", "was", "are", "you", "all", "get", "use", "new"}
 
 SYSTEM = """\
 You keep a work log. You get one 15-minute slot of computer activity as JSON items
@@ -111,22 +112,25 @@ def content_words(text: str) -> list[str]:
     return [w for w in words(text) if len(w) >= 4 and w not in STOP_WORDS]
 
 
-def grounded(text: str, evidence: str) -> bool:
+def grounded(text: str, evidence: str, min_prefix: int = 4) -> bool:
     """Tell whether at least one content word of text appears in the evidence.
 
     Args:
         text: Model text.
         evidence: Titles, names and subjects it must come from.
+        min_prefix: Shortest stem that may match as a prefix ("nav" for "navigation").
 
     Returns:
         True when a content word (or its stem) is found.
     """
-    stems = {stem(w) for w in words(evidence) if len(w) >= 3}
+    stems = {stem(w) for w in words(evidence) if len(w) >= 3 and w not in SHORT_WORDS}
     for word in content_words(text):
         s = stem(word)
-        if any(s == e or (min(len(s), len(e)) >= 4 and (s.startswith(e) or e.startswith(s)))
-               for e in stems):  # fmt: skip
-            return True
+        for e in stems:
+            if s == e or (
+                min(len(s), len(e)) >= min_prefix and (s.startswith(e) or e.startswith(s))
+            ):
+                return True
     return False
 
 
@@ -247,6 +251,8 @@ def check(
     evidence = " ".join(i.words() for i in items if i)
     if not grounded(summary, evidence):
         return None, "summary not grounded"
+    if content_words(topic) and not grounded(topic, evidence + " " + summary, min_prefix=3):
+        return None, "topic not grounded"
     taken.update(ids)
     return make_block(slot, windows, items, project, topic, summary, "model"), "ok"
 

@@ -160,7 +160,9 @@
       api("set_hours_view", state.view).then(render);
     });
   });
-  function hide() { if (!PREVIEW) { api("hide_card"); } }
+  function hide() {
+    if (PREVIEW) { status("In the app this hides the card."); } else { api("hide_card"); }
+  }
   $("close").addEventListener("click", hide);
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") { hide(); } });
 

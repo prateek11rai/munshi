@@ -40,4 +40,7 @@ def inline(name: str) -> str:
     )
     page = page.replace('<script src="card.js"></script>', f"<script>\n{read('card.js')}</script>")
     svg = base64.b64encode(read("munshi.svg").encode()).decode()
-    return page.replace('src="munshi.svg"', f'src="data:image/svg+xml;base64,{svg}"')
+    data = f"data:image/svg+xml;base64,{svg}"
+    return page.replace('src="munshi.svg"', f'src="{data}"').replace(
+        'href="munshi.svg"', f'href="{data}"'
+    )

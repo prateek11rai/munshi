@@ -105,10 +105,11 @@ def test_bad_ids_rejected():
 
 def test_invented_project_rejected_but_code_project_wins():
     slot = make_slot()
-    bad = reply(["e2"], project="moonbase", summary="Read about SQLite WAL mode")
+    wal = "Read about SQLite WAL mode"
+    bad = reply(["e2"], project="moonbase", topic="sqlite", summary=wal)
     assert check(bad, slot, KNOWN, [], set()) == (None, "unknown project")
     ok, _ = check(
-        reply(["e2"], project="other", summary="Read about SQLite WAL mode"), slot, KNOWN, [], set()
+        reply(["e2"], project="other", topic="sqlite", summary=wal), slot, KNOWN, [], set()
     )
     assert ok.project == "Other"
     overridden, _ = check(reply(["e1"], project="lantern"), slot, KNOWN, [], set())
@@ -119,15 +120,14 @@ def test_long_summary_and_long_topic_rejected():
     slot = make_slot()
     long = "Tightened the tide chart cache " + "and then some more words " * 3
     assert check(reply(["e1"], summary=long), slot, KNOWN, [], set()) == (None, "summary too long")
-    assert check(reply(["e1"], topic="a very long new topic name"), slot, KNOWN, [], set()) == (
+    long_topic = "tidepool cache and chart work"
+    assert check(reply(["e1"], topic=long_topic), slot, KNOWN, [], set()) == (
         None,
         "topic too long",
     )
-    existing = ["A very long new topic name"]
-    block, _ = check(
-        reply(["e1"], topic="a very long new topic name"), slot, KNOWN, existing, set()
-    )
-    assert block.topic == "A very long new topic name"
+    existing = ["Tidepool cache and chart work"]
+    block, _ = check(reply(["e1"], topic=long_topic), slot, KNOWN, existing, set())
+    assert block.topic == "Tidepool cache and chart work"
 
 
 def test_digits_stripped_from_model_text():
@@ -215,3 +215,20 @@ def test_clean_and_grounded():
     assert clean("Read [docs](http://x.y/z) <b>now</b> 100%") == "Read docs now"
     assert grounded("Tightening tide-chart caching", "cache.py — tidepool")
     assert not grounded("Something else entirely", "cache.py — tidepool")
+
+
+def test_reused_topic_must_fit_the_evidence():
+    slot = make_slot()
+    wrong = reply(
+        ["e2"], project="Other", topic="docs navigation", summary="Read about SQLite WAL mode"
+    )
+    assert check(wrong, slot, KNOWN, ["docs navigation"], set()) == (None, "topic not grounded")
+    short = reply(["e1"], topic="CI fix")
+    assert check(short, slot, KNOWN, [], set())[1] == "ok"
+
+
+def test_topic_abbreviation_in_file_name_counts():
+    store = Store(":memory:")
+    window(store, "14:00", "14:14", "Code", "nav.md — lantern")
+    nav = reply(["e1"], project="lantern", topic="docs navigation", summary="Edited lantern nav")
+    assert check(nav, slot_with(store), KNOWN, [], set())[1] == "ok"
