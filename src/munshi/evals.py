@@ -21,6 +21,8 @@ class Report:
     result: Result
     wall: float
     source: str = "demo"
+    model_seconds: float = 0.0
+    fallback_seconds: float = 0.0
 
     def lines(self) -> list[str]:
         """Format the report.
@@ -39,6 +41,12 @@ class Report:
         if judged:
             out.append(f"acceptance {100 * r.accepted / judged:.0f}% of model blocks")
         out.append(f"fallback rate {100 * r.fallback / blocks:.0f}% of blocks")
+        timed = self.model_seconds + self.fallback_seconds
+        if timed:
+            out.append(
+                f"active time labelled by the model {100 * self.model_seconds / timed:.0f}%"
+                f" · by code {100 * self.fallback_seconds / timed:.0f}%"
+            )
         out.append(
             f"seconds per slot: mean {sum(secs) / len(secs):.1f} · max {max(secs):.1f}"
             f" · total {self.wall:.0f}"
@@ -89,11 +97,18 @@ def write_all(writer: Writer, model: JsonModel, starts: list[float], source: str
     """
     result = Result()
     began = time.monotonic()
+    report = Report(model.name, result, 0.0, source)
     for n, start in enumerate(starts, 1):
         writer.write_slot(start, result)
+        for block in writer.store.blocks(start, start + SLOT_SECONDS):
+            if block.slot == start and block.source == "fallback":
+                report.fallback_seconds += block.active
+            elif block.slot == start:
+                report.model_seconds += block.active
         print(f"\r{n}/{len(starts)} slots", end="", flush=True)
     print()
-    return Report(model.name, result, time.monotonic() - began, source)
+    report.wall = time.monotonic() - began
+    return report
 
 
 def day_slots(store: Store, day: date, now: float) -> list[float]:
