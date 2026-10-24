@@ -7,11 +7,13 @@ from pathlib import Path
 from typing import Protocol
 
 from munshi.collect.procs import ProcessWords
+from munshi.collect.tmux import TmuxPane, bare_title
 from munshi.config import Config, contains_word
 from munshi.control import is_paused
 from munshi.redact import redact
 from munshi.store import Event, Store
 from munshi.timefmt import Clock, day_of
+from munshi.write.slots import TERMINALS
 
 log = logging.getLogger(__name__)
 
@@ -121,6 +123,7 @@ class Collector:
         scanners: tuple[Scanner, ...] = (),
         own_pid: int | None = None,
         procs: ProcessWords | None = None,
+        tmux: TmuxPane | None = None,
     ) -> None:
         """Create the collector.
 
@@ -132,6 +135,7 @@ class Collector:
             scanners: Git and file scanners, run every five minutes.
             own_pid: This process; its windows are never recorded.
             procs: Command-line word check; built from the config when None.
+            tmux: Names the active tmux pane when a terminal's title is just "tmux".
         """
         self.store = store
         self.config = config
@@ -140,6 +144,7 @@ class Collector:
         self.scanners = scanners
         self.own_pid = os.getpid() if own_pid is None else own_pid
         self.procs = procs or ProcessWords(config.ignore_process_words)
+        self.tmux = tmux
         self.current: Event | None = None
         self.next_scan = 0.0
 
@@ -210,6 +215,10 @@ class Collector:
 
     def _window(self, now: float, idle: float) -> str:
         win = self.windows.front_window()
+        if win and self.tmux and win.app.lower() in TERMINALS and bare_title(win.title):
+            # The pane's "command — repo" stands in for the title, so the word checks,
+            # redaction and project detection all see it.
+            win.title = self.tmux.context() or win.title
         reason = self.skip_reason(win)
         if reason or win is None:
             if self.current:
