@@ -163,7 +163,8 @@ def compact(events: list[Event], start: float, end: float, known: list[str]) -> 
     """Compact a slot's events into items with stable ids.
 
     Window events are clipped to the slot and merged by (app, title); away time is
-    dropped; git and file events become their own items.
+    dropped; git and file events become their own items, except git events with no
+    new commits for a repo none of the slot's windows were in.
 
     Args:
         events: Events overlapping the slot.
@@ -207,7 +208,14 @@ def compact(events: list[Event], start: float, end: float, known: list[str]) -> 
             )
     items = [i for i in items if i.kind != "window" or i.seconds >= MIN_SECONDS]
     items.sort(key=lambda item: item.start)
+    for item in items:
+        item.project = detect_project(item, known)
+    # A git item says something about this slot only through new commits or a repo
+    # the windows were in; the rest (e.g. every repo at start-up) is noise.
+    in_windows = {i.project for i in items if i.kind == "window" and i.project}
+    items = [
+        i for i in items if i.kind != "git" or i.detail.get("commits") or i.project in in_windows
+    ]
     for n, item in enumerate(items, 1):
         item.id = f"e{n}"
-        item.project = detect_project(item, known)
     return Slot(start, end, items)

@@ -10,6 +10,7 @@ from munshi.write.blocks import (
     grounded,
     merge_adjacent,
     parse,
+    schema,
 )
 from munshi.write.slots import Item, compact, detect_project
 
@@ -232,3 +233,48 @@ def test_topic_abbreviation_in_file_name_counts():
     window(store, "14:00", "14:14", "Code", "nav.md — lantern")
     nav = reply(["e1"], project="lantern", topic="docs navigation", summary="Edited lantern nav")
     assert check(nav, slot_with(store), KNOWN, [], set())[1] == "ok"
+
+
+def test_schema_takes_window_ids_as_evidence_and_git_ids_as_extra():
+    slot = make_slot()
+    kinds = {i.id: i.kind for i in slot.items}
+    block = schema(slot, KNOWN)["properties"]["blocks"]["items"]
+    evidence, extra = block["properties"]["evidence"], block["properties"]["extra"]
+    assert {kinds[i] for i in evidence["items"]["enum"]} == {"window"}
+    assert evidence["minItems"] == 1 and "extra" not in block["required"]
+    assert {kinds[i] for i in extra["items"]["enum"]} == {"git"}
+    git_id = extra["items"]["enum"][0]
+    with_extra = ReplyBlock(
+        evidence=["e1"], extra=[git_id], project="tidepool", topic="tide-chart caching",
+        summary="Fixed the tide chart cache per station",
+    )  # fmt: skip
+    made, reason = check(with_extra, slot, KNOWN, [], set())
+    assert reason == "ok" and len(made.evidence) == 3
+    assert check(reply([git_id]), slot, KNOWN, [], set()) == (None, "no window time")
+
+
+def test_schema_without_git_or_file_items_has_no_extra():
+    store = Store(":memory:")
+    window(store, "14:00", "14:05", "Code", "cache.py — tidepool")
+    block = schema(slot_with(store), KNOWN)["properties"]["blocks"]["items"]
+    assert "extra" not in block["properties"]
+
+
+def test_compact_drops_git_noise_but_keeps_commits_and_window_repos():
+    store = Store(":memory:")
+    window(store, "14:00", "14:10", "Code", "cache.py — tidepool")
+
+    def git_event(repo, commits=()):
+        detail = {"commits": [{"hash": "a", "subject": s} for s in commits], "dirty": 1}
+        store.add_event(Event("git", at(DAY, "14:01"), at(DAY, "14:01"), repo=repo, detail=detail))
+
+    git_event("tidepool")
+    git_event("lantern")
+    git_event("lantern", ["docs: sidebar links"])
+    slot = slot_with(store)
+    assert [(i.id, i.kind, i.repo) for i in slot.items] == [
+        ("e1", "window", None),
+        ("e2", "git", "tidepool"),
+        ("e3", "git", "lantern"),
+    ]
+    assert slot.items[2].detail["commits"]
