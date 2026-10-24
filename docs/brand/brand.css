@@ -1,0 +1,56 @@
+:root {
+  --bg: #17181b;
+  --panel: #1f2024;
+  --line: #2e3036;
+  --text: #e8e6e1;
+  --muted: #9a9a9f;
+  --accent: #e0b25c;
+  --bar: #4f7fb3;
+  --warn: #d9734f;
+  --rule: #1e1f23;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --pitch: 40px;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.ledger {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--bg);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--pitch) - 1px),
+    var(--rule) calc(var(--pitch) - 1px),
+    var(--rule) var(--pitch)
+  );
+}
+
+.margin-rule {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--accent);
+  opacity: 0.55;
+}
+
+svg { display: block; }
+svg .bg { fill: var(--bg); }
+svg .rule { fill: var(--rule); }
+svg .margin { fill: var(--accent); opacity: 0.55; }
+svg .t-name { fill: var(--text); font-family: var(--font); font-weight: 700; letter-spacing: -0.02em; }
+svg .t-tag { fill: var(--text); font-family: var(--font); font-weight: 400; }
+svg .t-support { fill: var(--muted); font-family: var(--mono); }
