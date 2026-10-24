@@ -14,6 +14,13 @@ BUDDY = 88
 CARD_W, CARD_H = 380, 560
 MARGIN = 8
 CLICK_AFTER_MOVE = 0.4
+LAYOUT_JS = """(function () {
+  var main = document.querySelector('main');
+  main.scrollTop = main.scrollHeight;
+  var box = function (s) { return document.querySelector(s).getBoundingClientRect(); };
+  return {height: window.innerHeight, main: box('main').bottom, copy: box('#copy').bottom,
+          footer_top: box('footer').top, footer_bottom: box('footer').bottom};
+})()"""
 
 
 class Api:
@@ -350,6 +357,13 @@ def _self_test(windows: Windows) -> int:
     checks["click opens card"] = bool(_wait(lambda: windows.card_visible))
     checks["card filled"] = bool(
         _wait(lambda: windows.card.evaluate_js("document.getElementById('where-text').textContent"))
+    )
+    layout = windows.card.evaluate_js(LAYOUT_JS) or {}
+    print(f"self-test: card layout {layout}")
+    checks["card content scrolls clear of the footer"] = bool(layout) and (
+        layout["copy"] <= layout["footer_top"] + 0.5
+        and layout["main"] <= layout["footer_top"] + 0.5
+        and layout["footer_bottom"] <= layout["height"] + 0.5
     )
     windows.card.evaluate_js(
         "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'})); 1"
