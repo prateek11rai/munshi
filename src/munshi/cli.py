@@ -55,7 +55,9 @@ def build_parser() -> argparse.ArgumentParser:
     preview.add_argument("--port", type=int, default=8765, help=argparse.SUPPRESS)
     stats = add("stats", "Numbers about recording and writing (no recorded text).")
     stats.add_argument("--day", type=date.fromisoformat, help="YYYY-MM-DD; default today")
-    ev = add("eval", "Run the writer over the demo days with a model.")
+    ev = add("eval", "Rerun the writer over the demo days or a real day; numbers only.")
+    ev.add_argument("--real", action="store_true", help="a real day, in a scratch copy")
+    ev.add_argument("--day", type=date.fromisoformat, help="YYYY-MM-DD with --real; default today")
     ev.add_argument("--model", help="Ollama model name")
     ev.add_argument("--slots", type=int, help="only the first N slots")
     return parser
@@ -270,25 +272,33 @@ def cmd_preview(args: argparse.Namespace) -> int:
 
 
 def cmd_eval(args: argparse.Namespace) -> int:
-    """Run the writer over fresh copies of the demo days and report.
+    """Rerun the writer over the demo days, or a real day in a scratch copy, and report.
 
     Args:
         args: Parsed arguments.
 
     Returns:
-        0, or 1 when the model is not available.
+        0, or 1 when the model or the data is not available.
     """
-    from munshi.evals import run_eval
+    from munshi.evals import run_eval, run_real_eval
 
-    if not args.demo:
-        print("eval runs on the demo days; add --demo.")
+    if args.demo == args.real:
+        print("eval needs --demo or --real.")
         return 1
-    home = demo_home()
+    home = demo_home() if args.demo else real_home()
     config = load_config(home) if (home / "config.toml").exists() else from_raw({})
+    if args.real and not (home / "munshi.db").exists():
+        print("Nothing recorded yet.")
+        return 1
     model = model_or_none(config, args.model)
     if model is None:
         return 1
-    report = run_eval(config, model, args.slots)
+    if args.real:
+        now = SystemClock().now()
+        day = args.day or day_of(now)
+        report = run_real_eval(config, model, home / "munshi.db", day, now, args.slots)
+    else:
+        report = run_eval(config, model, args.slots)
     print("\n".join(report.lines()))
     return 0
 

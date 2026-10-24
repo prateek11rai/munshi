@@ -121,7 +121,7 @@ collector (every 10 s) ─▶ events ─▶ writer (every 15 min) ─▶ blocks 
 | `forget --last 60m` | Forget recent time. |
 | `preview [--demo]` | Serve the card on http://127.0.0.1:8765 with the same data, for a browser (and Playwright). |
 | `stats [--demo] [--day D]` | Numbers only, never recorded text: events by kind and minutes; polls recorded vs skipped by reason; slots written; blocks accepted, rejected by check, fallback; seconds per slot; last writer run; the running app's Accessibility flag, RSS and CPU (stored by `start` at launch and every 10 min). |
-| `eval [--model M] [--demo]` | Run the writer over the demo days with a model; print blocks accepted vs rejected, fallback rate, seconds per slot. |
+| `eval [--model M] (--demo | --real [--day D])` | Run the writer over the demo days, or over a real day in a scratch copy of the store (the real store is untouched); print numbers only: blocks accepted vs rejected by check, fallback rate, seconds per slot. |
 
 ## Config
 
