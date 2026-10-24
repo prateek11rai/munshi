@@ -143,9 +143,9 @@ Homebrew's Ollama on Apple Silicon cannot constrain a reply to a JSON schema (it
 
 Built for the [Hacktoberfest Open-Source AI Challenge, Week 3: Slow and Steady](https://dev.to/challenges/hacktoberfest-week3-2026-10-19): something with open-weight AI that rewards laziness.
 
-**Read the post:** <!-- DEV post link -->
+**Read the post:** [My hours now write themselves every 15 minutes, from a 4B model that never leaves my Mac](https://dev.to/prateek11rai/my-hours-now-write-themselves-every-15-minutes-from-a-4b-model-that-never-leaves-my-mac-o95)
 
-Two agent sessions built it: session A, the base on made-up demo data only, and session B, real recording and tuning on real numbers. <!-- session links -->
+Two agent sessions built it: session A, the base on made-up demo data only, and session B, real recording and tuning on real numbers. Both are embedded in the post.
 
 A planner session wrote each brief in [docs/design/](docs/design/) and reviewed every diff; build agents, each in its own tmux window, wrote the code. Decisions and measurements are in [docs/BUILD_LOG.md](docs/BUILD_LOG.md); the rules agents follow, and the checks they run before every commit, are in [AGENTS.md](AGENTS.md).
 
