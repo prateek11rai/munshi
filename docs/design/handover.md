@@ -1,3 +1,5 @@
+> Superseded by `docs/design/phase-b.md`; kept as history.
+
 # Munshi · handover to the personal Mac (phase B, in Cursor)
 
 > For the agent in **Cursor desktop** on the owner's personal Mac (M1, 16 GB). Lives at `docs/design/handover.md`. Read `docs/design/spec.md`, `docs/BUILD_LOG.md` and `AGENTS.md` after this file. Don't edit this file; ask in the chat if something is unclear.
