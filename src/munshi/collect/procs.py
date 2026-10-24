@@ -18,20 +18,21 @@ FIREFOX_BUNDLES = {
 PROFILE_RE = re.compile(r"/Firefox/Profiles/([^/]+)/")
 
 
-def ps_field(pid: int, field: str, run: Runner = subprocess.run) -> str | None:
-    """Read one `ps` column for a process.
+def ps_field(pid: int, *fields: str, run: Runner = subprocess.run) -> str | None:
+    """Read `ps` columns for a process, without headers.
 
     Args:
         pid: The process id.
-        field: A `ps -o` keyword, e.g. "command" or "rss,%cpu".
+        *fields: `ps -o` keywords, e.g. "command", or "rss" and "%cpu".
         run: subprocess.run or a stand-in for tests.
 
     Returns:
-        The column text, or None on any error.
+        The columns' text, or None on any error.
     """
+    columns = [arg for field in fields for arg in ("-o", f"{field}=")]
     try:
         result = run(
-            [PS, "-o", f"{field}=", "-p", str(int(pid))],
+            [PS, *columns, "-p", str(int(pid))],
             capture_output=True,
             text=True,
             timeout=PS_TIMEOUT,
@@ -123,7 +124,7 @@ class ProcessWords:
         key = (pid, app)
         if key in self.cache:
             return self.cache[key]
-        command = ps_field(pid, "command", self.run)
+        command = ps_field(pid, "command", run=self.run)
         if command is None:
             return False
         hit = contains_word(command, self.words)
@@ -148,7 +149,7 @@ def usage(pid: int, run: Runner = subprocess.run) -> tuple[float, float] | None:
     Returns:
         (RSS in MB, CPU percent), or None when `ps` fails.
     """
-    text = ps_field(pid, "rss,%cpu", run)
+    text = ps_field(pid, "rss", "%cpu", run=run)
     parts = (text or "").split()
     try:
         rss_kb, cpu = float(parts[0]), float(parts[1].replace(",", "."))

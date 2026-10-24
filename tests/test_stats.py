@@ -2,6 +2,7 @@ import os
 import subprocess
 import threading
 
+import pytest
 from helpers import DAY, FakeModel, git, window
 
 from munshi import stats
@@ -93,7 +94,7 @@ def test_status_loop_stores_at_launch_then_stops(tmp_path, monkeypatch):
 
 def test_usage_parses_ps_and_survives_failures():
     def ok(args, **kwargs):
-        assert args == ["/bin/ps", "-o", "rss,%cpu=", "-p", "42"]
+        assert args == ["/bin/ps", "-o", "rss=", "-o", "%cpu=", "-p", "42"]
         return subprocess.CompletedProcess(args, 0, " 65536  2,5\n", "")
 
     def broken(args, **kwargs):
@@ -101,4 +102,11 @@ def test_usage_parses_ps_and_survives_failures():
 
     assert usage(42, ok) == (64.0, 2.5)
     assert usage(42, broken) is None
-    assert ps_field(42, "command", lambda a, **k: subprocess.CompletedProcess(a, 1, "", "")) is None
+    failed = lambda a, **k: subprocess.CompletedProcess(a, 1, "", "")  # noqa: E731
+    assert ps_field(42, "command", run=failed) is None
+
+
+@pytest.mark.skipif(not os.path.exists("/bin/ps"), reason="needs ps")
+def test_usage_reads_the_real_ps_of_this_test_process():
+    rss, cpu = usage(os.getpid())
+    assert rss > 1 and cpu >= 0
