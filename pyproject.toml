@@ -1,7 +1,7 @@
 [project]
 name = "munshi"
 version = "0.1.0"
-description = "A desktop buddy that keeps your daily work register with a local open-weight model."
+description = "A desktop buddy that keeps your daily register with a local open-weight model."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]

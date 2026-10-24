@@ -25,7 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
     Returns:
         The configured parser.
     """
-    parser = argparse.ArgumentParser(prog="munshi", description="Your daily work register.")
+    parser = argparse.ArgumentParser(prog="munshi", description="Your daily register.")
     parser.add_argument("--version", action="version", version=f"munshi {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
