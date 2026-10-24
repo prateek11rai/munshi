@@ -37,6 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     start = add("start", "Start the buddy (and, without --demo, recording).")
     start.add_argument("--self-test", action="store_true", help=argparse.SUPPRESS)
+    start.add_argument("--show-card", action="store_true", help=argparse.SUPPRESS)
     add("doctor", "Check the setup.")
     demo_cmd = add("demo", "Load or clear the two made-up demo days.", demo_flag=False)
     demo_cmd.add_argument("action", choices=["load", "clear"])
@@ -370,7 +371,9 @@ def cmd_start(args: argparse.Namespace) -> int:
     threads.append(status_thread(home, clock, stop))
     if not args.demo:
         threads.append(collector_thread(home, config, stop))
-    return run(Service(home, args.demo), threads, stop, self_test=args.self_test)
+    return run(
+        Service(home, args.demo), threads, stop, self_test=args.self_test, show_card=args.show_card
+    )
 
 
 COMMANDS = {

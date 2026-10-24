@@ -285,6 +285,7 @@ def run(
     background: list[threading.Thread],
     stop: threading.Event,
     self_test: bool = False,
+    show_card: bool = False,
 ) -> int:
     """Show the buddy and card on the main thread; background threads run alongside.
 
@@ -293,6 +294,7 @@ def run(
         background: Collector and writer threads, started once the GUI is up.
         stop: Set when the windows close, to stop the threads.
         self_test: Check the JS bridge from the card window, print the result and quit.
+        show_card: Open the card once it has loaded (for a window screenshot).
 
     Returns:
         Exit code.
@@ -309,6 +311,8 @@ def run(
         AppHelper.callAfter(hide_dock_icon)
         for thread in background:
             thread.start()
+        if show_card and windows.card.events.loaded.wait(15):
+            windows.toggle_card()
         if self_test:
             outcome["code"] = _self_test(windows)
             for window in (windows.card, windows.buddy):
