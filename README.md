@@ -13,7 +13,9 @@ You do nothing. You never write a status update, you never rebuild yesterday fro
 
 - Everything stays on your Mac. The only network call goes to the model on your own computer; Munshi refuses a remote model address unless you set `allow_remote_model = true` on purpose.
 - It records the front app's name, the window title, and for folders you list, git branch, commit subjects and the names of changed files. No screenshots, no keystrokes, no clipboard history, no browser history, no file contents, no diffs.
-- Password managers, Keychain Access, System Settings and the lock screen are never recorded. Private and incognito windows are recorded as the app name only.
+- Password managers, Keychain Access, System Settings and the lock screen are never recorded, nor any app you add to the ignore list. Private and incognito windows are recorded as the app name only.
+- **Title words:** list words such as your employer's name under `ignore_title_words`, and any window whose title (or app name) contains one is not recorded at all, as if the app were ignored. Git repos, commit subjects and file names containing one are dropped too.
+- **Process words:** list words under `ignore_process_words`, and any app started with a command line that contains one is not recorded. This keeps a work browser profile (opened with a profile name or path holding the word) out, while your personal profile is still recorded.
 - Emails, links (only the site name is kept), tokens and long numbers are removed before anything is saved.
 - No folders are scanned until you list them. **Pause** stops all recording; **Forget last hour** deletes it.
 - Raw window events are deleted after 14 days. The data folder is readable only by you.
@@ -71,7 +73,9 @@ flowchart LR
 | `munshi pause [--for 30m\|1h]` / `munshi resume` | Pause or resume recording. |
 | `munshi forget --last 60m` | Forget recent time. |
 | `munshi preview [--demo]` | The card on <http://127.0.0.1:8765> for a browser. |
+| `munshi stats [--day D] [--demo]` | Numbers only: events, polls recorded or skipped by reason, blocks accepted, rejected and fallback, seconds per slot, the app's memory, CPU and Accessibility. Never prints a title or a label. |
 | `munshi eval [--model M] --demo` | Run the writer over the demo days and report accepted, rejected and fallback blocks and seconds per slot. |
+| `munshi eval --real [--day D]` | The same over one of your real days, in a throwaway copy of the store; numbers only. |
 
 Prefix with `uv run` inside the repo.
 
@@ -85,6 +89,8 @@ ollama_url = "http://127.0.0.1:11434"
 allow_remote_model = false
 allowed_roots = []            # e.g. ["~/code", "~/Documents/notes"]
 keep_events_days = 14
+ignore_title_words = []       # e.g. ["acme"]: windows with this in the title are not recorded
+ignore_process_words = []     # e.g. ["acme"]: apps started with this in their command line
 
 [apps]
 mode = "all"                  # or "only": record just the apps in `only`
@@ -92,7 +98,7 @@ only = []
 ignore = []                   # added to the built-in list
 ```
 
-Environment overrides: `MUNSHI_HOME`, `MUNSHI_MODEL`, `MUNSHI_OLLAMA_URL`. There are no secrets and no `.env`.
+Unknown keys are refused, so a misspelt privacy setting fails loudly instead of being ignored. Environment overrides: `MUNSHI_HOME`, `MUNSHI_MODEL`, `MUNSHI_OLLAMA_URL`. There are no secrets and no `.env`.
 
 Journal pages land in `~/.munshi/journal/YYYY-MM-DD.md` (Obsidian-friendly) and hours in `~/.munshi/hours/YYYY-MM-DD.csv`.
 
@@ -116,7 +122,7 @@ uv run pytest -m "not model"   # fast, no model needed
 uv run pytest                  # includes one test against the local gemma4:e4b
 ```
 
-See [AGENTS.md](AGENTS.md) for the rules agents follow in this repo and [docs/BUILD_LOG.md](docs/BUILD_LOG.md) for decisions and measurements.
+See [AGENTS.md](AGENTS.md) for the rules agents follow in this repo and [docs/BUILD_LOG.md](docs/BUILD_LOG.md) for decisions and measurements. One fix came from Cursor with Grok on a second Mac.
 
 ## License
 
