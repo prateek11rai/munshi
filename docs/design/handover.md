@@ -17,7 +17,7 @@ Challenge: https://dev.to/challenges/hacktoberfest-week3-2026-10-19, closes **Mo
 
 1. `git config user.name prateek11rai` and `git config user.email 165780365+prateek11rai@users.noreply.github.com` (repo-local).
 2. `.git/info/exclude` gets: `.agents/skills/devrelay-*/`, `.claude/settings.local.json`, `.env`.
-3. Write `.git/info/leak-check.sh` (local only, never committed) that fails when: `git config user.email` isn't the noreply address; any commit's author or committer email isn't the noreply address (or `noreply@github.com`); `.env` is tracked; `uv.lock` mentions a host other than `pypi.org` / `files.pythonhosted.org`; `uv.lock` has no `exclude-newer`; any tracked file or staged line contains `/Users/`, an email address other than noreply ones, or `BEGIN .* PRIVATE KEY`. Print `leak-check: clean` when nothing fails. Run it before every commit.
+3. Write `.git/info/leak-check.sh` (local only, never committed) that fails when: `git config user.email` isn't the noreply address; any commit's author or committer email isn't the noreply address (or `noreply@github.com`); `.env` is tracked; `uv.lock` mentions a host other than `pypi.org` / `files.pythonhosted.org`; `uv.lock` has no `exclude-newer`; any tracked file or staged line contains `/Users/`, an email address other than noreply ones and the reserved test domains (`example.com`, `example.org`, `example.net`, used by the redaction tests), or `BEGIN .* PRIVATE KEY`. Print `leak-check: clean` when nothing fails. Run it before every commit.
 
 ## Step 2 · DevRelay for this repo only
 
@@ -27,7 +27,7 @@ DevRelay saves agent sessions to DEV. Install it **without** touching any global
 2. `DO_NOT_TRACK=1 sh "$TMPDIR/devrelay-install.sh" --hosts=none --no-skills --no-auto-update --no-path-update` (the env var only for this one command).
 3. The owner logs in: `~/.devrelay/bin/dev_mlh_mcp_server login` (browser).
 4. From the repo: `claude mcp add devrelay-gateway --scope local -e DEVRELAY_SKILLS_DIR="$PWD/.agents/skills" -e DEVRELAY_DISABLE_AUTO_UPDATE=1 -- ~/.devrelay/bin/dev_mlh_mcp_server --stdio`. The `DEVRELAY_DISABLE_AUTO_UPDATE=1` matters: on the other laptop, the gateway updated itself on launch (0.1.17 → 0.1.24), installed a LaunchAgent and copied its skills into six global agent folders.
-5. `DEVRELAY_SKILLS_DIR="$PWD/.agents/skills" ~/.devrelay/bin/dev_mlh_mcp_server --sync-skills`. `.claude/skills` is already a symlink to `../.agents/skills` in the repo.
+5. `DEVRELAY_SKILLS_DIR="$PWD/.agents/skills" DEVRELAY_DISABLE_AUTO_UPDATE=1 ~/.devrelay/bin/dev_mlh_mcp_server --sync-skills`. Then create the link Claude Code reads skills from: `mkdir -p .claude && ln -s ../.agents/skills .claude/skills` (it is git-ignored, so a clone doesn't have it).
 6. Check, and check again after the first restart in Step 2.8: `.agents/skills/` has the `devrelay-*` skills and `git status` doesn't show them; none of `~/.claude/skills`, `~/.agents/skills`, `~/.gemini/config/skills`, `~/.codex/skills`, `~/.copilot/skills`, `~/.cursor/skills` has `devrelay-*`; `~/Library/LaunchAgents/com.devrelay.updater.plist` doesn't exist and `launchctl list | grep devrelay` prints nothing; `claude mcp list` from another folder doesn't show `devrelay-gateway`. If anything global appears, stop and tell the owner; don't delete it yourself.
 7. Never run `devrelay --doctor` (it re-enables the global updater). Don't submit or publish sessions; the owner does that.
 8. Tell the owner to restart `claude` in the repo (`/exit`, then `claude --continue`) so the DevRelay tools load, then go on.
@@ -36,7 +36,7 @@ DevRelay saves agent sessions to DEV. Install it **without** touching any global
 
 1. `uv sync --frozen`; `uv run ruff check`; `uv run ruff format --check`; `uv run pytest` (the model test included).
 2. `uv run munshi doctor`.
-3. `uv run munshi demo load`, `uv run munshi start --demo`: ask the owner to confirm the buddy, the click, the card, Esc, and the drag. Fix what's broken, with tests.
+3. `uv run munshi demo load`, then `uv run munshi start --demo --self-test` (checks card data, click, card fill, Esc, drag saves the position, click after drag, no Dock icon on the real window server), then `uv run munshi start --demo` and ask the owner to confirm the buddy, the click, the card, Esc and the drag by hand. Fix what's broken, with tests.
 
 ## Step 4 · Real collection
 
