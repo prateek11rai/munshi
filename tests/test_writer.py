@@ -152,7 +152,8 @@ def test_day_note_falls_back_when_model_rambles(tmp_path):
     assert note.source == "fallback"
     assert note.text.splitlines() == [
         "lantern: Code · nav.md",
-        "tidepool: Code · cache.py, Google Chrome · SQLite WAL mode",
+        "tidepool: Code · cache.py",
+        "Other: Google Chrome · SQLite WAL mode",
     ]
 
 
