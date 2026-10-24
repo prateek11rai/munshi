@@ -43,7 +43,7 @@ Code style: Google-style docstrings on every public function, class and method; 
 
 ## Never
 
-- **Real collection on a work machine runs only with the owner's privacy config** in `~/.munshi/config.toml` (ignored apps, title and process words, allowed roots), and only when the owner asks for it. Agents never read raw Munshi data: what they learn about a real run comes from `munshi stats` and `munshi eval --real` numbers. Tests use the fakes in `collect/fake.py` and mocked subprocess calls. No desktop screenshots; a single Munshi window, by window id, in demo mode, after the owner says yes.
+- **Real collection on a shared or managed machine runs only with the owner's privacy config** in `~/.munshi/config.toml` (ignored apps, title and process words, allowed roots), and only when the owner asks for it. Agents never read raw Munshi data: what they learn about a real run comes from `munshi stats` and `munshi eval --real` numbers. Tests use the fakes in `collect/fake.py` and mocked subprocess calls. No desktop screenshots; a single Munshi window, by window id, in demo mode, after the owner says yes.
 - Never print, log, summarise or commit config values, recorded data, journal pages or anything from `~/.munshi`. Use the demo home (`./.data/demo`) or a temporary `MUNSHI_HOME`.
 - Never put real people, companies, customers, tickets or the owner's projects in demo data, fixtures or docs. The demo projects are tidepool and lantern.
 - Never add dependencies without asking; pins are exact and the uv `exclude-newer` cooldown stays.
