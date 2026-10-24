@@ -29,7 +29,7 @@ Built on 2026-10-24 on the owner's work laptop, demo data and fakes only. Real c
 - `pause`, `resume` and `forget` also accept `--demo`, so they can be tried here without creating `~/.munshi`.
 - `eval` also takes `--slots N` for a quick run; `start` has a hidden `--self-test` (below).
 - `hours` defaults to today (the spec does not say); `journal` defaults to yesterday as specified.
-- Files: `store.py` is 427 lines (mostly docstrings); everything else is under 400.
+- Files: all under 400 lines (the SQL schema lives in `schema.py`, the record types in `records.py`).
 - `.gitignore` also lists `.claude/skills`, `.claude/settings.local.json` (the planner's local DevRelay setup) and `.playwright-mcp/`, so `git status` stays clean.
 
 ## Eval (gemma4:e4b, this laptop)
@@ -113,6 +113,5 @@ Note: the Copy check ran in a headed browser, so the made-up demo timesheet text
 
 ## Open questions
 
-- CI uses `actions/checkout@v4` and `actions/setup-python@v5` by tag; pinning them to commit SHAs needs a lookup I could not do here (network limited to PyPI and the local Ollama). Recommendation: pin to SHAs before the repo goes public.
-- The CI model job pulls a multi-GB model on every run (about 10 minutes on a hosted runner). Recommendation: keep it, but trigger it only on changes under `src/munshi/write/` or on a schedule if minutes become a concern.
-- `~/.claude/skills` and `~/.agents/skills` on this laptop also hold the nine `devrelay-*` skills (created 22:17, after the repo-scoped copies), which the setup brief says should not be there. I did not touch them and did not call DevRelay.
+- Resolved in review 1: CI actions are pinned to commit SHAs (looked up by the planner), and the model job moved to `.github/workflows/model.yml`, which runs only when `src/munshi/write/**`, the model test, `pyproject.toml`, `uv.lock` or the workflow itself change, or by hand (`workflow_dispatch`).
+- The global `devrelay-*` skills on this laptop came from DevRelay's self-update when the gateway launched; the planner handles the cleanup with the owner.

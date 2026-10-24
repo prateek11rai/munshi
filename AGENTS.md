@@ -2,6 +2,8 @@
 
 Rules for coding agents working in this repo. Read `docs/design/spec.md` first; it is the source of truth for behaviour.
 
+On the owner's personal Mac (phase B: real collection and tuning), start with `docs/design/handover.md`.
+
 ## Run
 
 ```sh
