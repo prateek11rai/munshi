@@ -4,6 +4,7 @@ from helpers import DAY, FakeModel, git, window
 
 from munshi.config import Config
 from munshi.control import forget
+from munshi.stats import slot_rows
 from munshi.store import Store
 from munshi.timefmt import FakeClock, at
 from munshi.write.model import ModelError
@@ -193,3 +194,21 @@ def test_check_where_rejects():
         check_where({"text": "You were caching tidepool at 14:05", "cites": ids}, blocks)
         == "You were caching tidepool at."
     )
+
+
+def test_slots_keep_seconds_reasons_and_model_errors():
+    bad = {"blocks": [{"evidence": ["e9"], "project": "tidepool", "topic": "x", "summary": "y"}]}
+    store, writer, clock = setup(FakeModel(bad, ModelError("timeout")))
+    result = writer.run()
+    rows = slot_rows(store, DAY)
+    assert [r["reasons"] for r in rows] == [{"unknown evidence id": 1}, {"model error": 1}]
+    assert all(r["seconds"] is not None for r in rows)
+    assert result.reasons == {"unknown evidence id": 1} and result.model_errors == 1
+    last = store.get("last_write")
+    assert last["at"] == clock.now() and last["slots"] == 2 and last["seconds"] >= 0
+
+
+def test_slots_without_a_model_have_no_seconds():
+    store, writer, _ = setup(None)
+    writer.run()
+    assert [r["seconds"] for r in slot_rows(store, DAY)] == [None, None]

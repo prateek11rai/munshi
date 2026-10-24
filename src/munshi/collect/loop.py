@@ -6,11 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from munshi.config import Config
+from munshi.collect.procs import ProcessWords
+from munshi.config import Config, contains_word
 from munshi.control import is_paused
 from munshi.redact import redact
 from munshi.store import Event, Store
-from munshi.timefmt import Clock
+from munshi.timefmt import Clock, day_of
 
 log = logging.getLogger(__name__)
 
@@ -67,6 +68,33 @@ class Scanner(Protocol):
         ...
 
 
+def scrub(event: Event, words: list[str]) -> Event | None:
+    """Drop the parts of a git or file event that contain a blocked title word.
+
+    Args:
+        event: A git or file event.
+        words: Lower-cased blocked words.
+
+    Returns:
+        The event without those parts, or None when the event itself is blocked.
+    """
+    if not words:
+        return event
+    if contains_word(event.repo, words) or contains_word(event.title, words):
+        return None
+    detail = dict(event.detail)
+    if contains_word(detail.get("folder"), words) or contains_word(detail.get("branch"), words):
+        return None
+    if "commits" in detail:
+        detail["commits"] = [
+            c for c in detail["commits"] if not contains_word(c.get("subject"), words)
+        ]
+    if "files" in detail:
+        detail["files"] = [name for name in detail["files"] if not contains_word(name, words)]
+    event.detail = detail
+    return event
+
+
 def is_private(title: str | None) -> bool:
     """Tell whether a window title belongs to a private browsing window.
 
@@ -91,16 +119,18 @@ class Collector:
         clock: Clock,
         scanners: tuple[Scanner, ...] = (),
         own_pid: int | None = None,
+        procs: ProcessWords | None = None,
     ) -> None:
         """Create the collector.
 
         Args:
             store: Where events go.
-            config: App rules and allowed roots.
+            config: App rules, blocked words and allowed roots.
             windows: Front window and idle source.
             clock: Time source.
             scanners: Git and file scanners, run every five minutes.
             own_pid: This process; its windows are never recorded.
+            procs: Command-line word check; built from the config when None.
         """
         self.store = store
         self.config = config
@@ -108,8 +138,42 @@ class Collector:
         self.clock = clock
         self.scanners = scanners
         self.own_pid = os.getpid() if own_pid is None else own_pid
+        self.procs = procs or ProcessWords(config.ignore_process_words)
         self.current: Event | None = None
         self.next_scan = 0.0
+
+    def count(self, now: float, name: str) -> None:
+        """Add one poll to a per-day counter (numbers only, for `munshi stats`).
+
+        Args:
+            now: Current time, epoch seconds.
+            name: E.g. "recorded", "ignored app", "title word".
+        """
+        self.store.bump(day_of(now).isoformat(), name)
+
+    def skip_reason(self, win: Window | None) -> str | None:
+        """Tell why a front window must not be recorded.
+
+        Title and app words are checked on the raw title, before redaction.
+
+        Args:
+            win: The front window, or None.
+
+        Returns:
+            The reason, or None when the window may be recorded.
+        """
+        if win is None:
+            return "no window"
+        if win.pid == self.own_pid:
+            return "own window"
+        if not self.config.apps.records(win.app):
+            return "ignored app"
+        words = self.config.ignore_title_words
+        if contains_word(win.title, words) or contains_word(win.app, words):
+            return "title word"
+        if self.procs.matches(win.pid, win.app):
+            return "process word"
+        return None
 
     def tick(self) -> None:
         """Poll once: extend or start an event, and scan when a scan is due."""
@@ -117,14 +181,16 @@ class Collector:
         if is_paused(self.store, now):
             self.current = None
             self.store.set("last_scan", now)
+            self.count(now, "paused")
             return
         if self.current and now - self.current.end > EXTEND_GAP + POLL_SECONDS:
             self.current = None
         idle = self.windows.idle_seconds()
         if idle >= AWAY_AFTER:
             self._away(now, now - idle)
+            self.count(now, "away")
         else:
-            self._window(now, idle)
+            self.count(now, self._window(now, idle))
         if now >= self.next_scan:
             self.scan(now)
 
@@ -141,14 +207,17 @@ class Collector:
         self.current = Event("away", start, now)
         self.store.add_event(self.current)
 
-    def _window(self, now: float, idle: float) -> None:
+    def _window(self, now: float, idle: float) -> str:
         win = self.windows.front_window()
-        if win is None or win.pid == self.own_pid or not self.config.apps.records(win.app):
+        reason = self.skip_reason(win)
+        if reason or win is None:
             if self.current:
                 self._extend(now)
             self.current = None
-            return
-        title = None if is_private(win.title) else redact(win.title)
+            return reason or "no window"
+        private = is_private(win.title)
+        title = None if private else redact(win.title)
+        outcome = "private" if private else "recorded"
         current = self.current
         if (
             current
@@ -157,7 +226,7 @@ class Collector:
             and now - current.end <= EXTEND_GAP
             and self._extend(now)
         ):
-            return
+            return outcome
         start = now
         if current and current.kind == "away":
             start = max(current.start, now - idle)
@@ -166,6 +235,7 @@ class Collector:
             self._extend(now)
         self.current = Event("window", start, now, app=win.app, title=title)
         self.store.add_event(self.current)
+        return outcome
 
     def _extend(self, end: float) -> bool:
         if not self.current or self.current.id is None:
@@ -190,7 +260,8 @@ class Collector:
         for scanner in self.scanners:
             try:
                 for event in scanner.scan(roots, since, now):
-                    self.store.add_event(event)
+                    if kept := scrub(event, self.config.ignore_title_words):
+                        self.store.add_event(kept)
             except Exception as exc:  # a broken repo must not stop the window log
                 log.warning("scanner %s failed: %s", type(scanner).__name__, type(exc).__name__)
         self.store.set("last_scan", now)

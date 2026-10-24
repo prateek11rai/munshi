@@ -1,4 +1,9 @@
+import sqlite3
+from datetime import date
+
+from munshi.stats import counters, slot_rows
 from munshi.store import Block, Event, Note, Store
+from munshi.timefmt import day_of
 
 
 def make_store():
@@ -6,7 +11,35 @@ def make_store():
 
 
 def test_schema_version():
-    assert make_store().schema_version() == 1
+    assert make_store().schema_version() == 2
+
+
+def test_version_1_database_gains_new_columns(tmp_path):
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.executescript(
+        "CREATE TABLE slots (start REAL PRIMARY KEY, written REAL NOT NULL, "
+        "accepted INTEGER NOT NULL DEFAULT 0, rejected INTEGER NOT NULL DEFAULT 0, "
+        "fallback INTEGER NOT NULL DEFAULT 0); INSERT INTO slots VALUES (0, 1, 2, 3, 4); "
+        "PRAGMA user_version=1;"
+    )
+    old.close()
+    store = Store(path)
+    assert store.schema_version() == 2
+    store.mark_slot(900, 950, 1, 0, 0, 2.5, {"topic too long": 1})
+    rows = slot_rows(store, day_of(0))
+    assert [(r["accepted"], r["seconds"], r["reasons"]) for r in rows] == [
+        (2, None, {}),
+        (1, 2.5, {"topic too long": 1}),
+    ]
+
+
+def test_counters():
+    store = make_store()
+    store.bump("2026-10-23", "recorded")
+    store.bump("2026-10-23", "recorded", 2)
+    store.bump("2026-10-24", "paused")
+    assert counters(store, date(2026, 10, 23)) == {"recorded": 3}
 
 
 def test_events_roundtrip_and_extend():

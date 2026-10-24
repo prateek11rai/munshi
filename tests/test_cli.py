@@ -40,6 +40,9 @@ def test_demo_commands(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "Ollama is not reachable" in out and "blocks written" in out
     assert main(["eval", "--demo"]) == 1
+    assert main(["stats", "--demo"]) == 0
+    out = capsys.readouterr().out
+    assert "(numbers only)" in out and "slots written" in out and "tidepool" not in out
     assert main(["demo", "clear"]) == 0
     assert not (tmp_path / ".data" / "demo").exists()
     assert not (tmp_path / "real").exists()

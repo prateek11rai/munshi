@@ -53,6 +53,8 @@ def build_parser() -> argparse.ArgumentParser:
     forget.add_argument("--last", default="60m", help="e.g. 60m or 2h")
     preview = add("preview", "Serve the card on http://127.0.0.1:8765.")
     preview.add_argument("--port", type=int, default=8765, help=argparse.SUPPRESS)
+    stats = add("stats", "Numbers about recording and writing (no recorded text).")
+    stats.add_argument("--day", type=date.fromisoformat, help="YYYY-MM-DD; default today")
     ev = add("eval", "Run the writer over the demo days with a model.")
     ev.add_argument("--model", help="Ollama model name")
     ev.add_argument("--slots", type=int, help="only the first N slots")
@@ -291,6 +293,22 @@ def cmd_eval(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_stats(args: argparse.Namespace) -> int:
+    """Print numbers about recording and writing; never recorded text.
+
+    Args:
+        args: Parsed arguments.
+
+    Returns:
+        0.
+    """
+    from munshi.stats import report
+
+    _, _, store, clock = open_home(args.demo)
+    print("\n".join(report(store, args.day or day_of(clock.now()), clock.now())))
+    return 0
+
+
 def cmd_demo(args: argparse.Namespace) -> int:
     """Load or clear the demo days.
 
@@ -323,6 +341,7 @@ def cmd_start(args: argparse.Namespace) -> int:
     if sys.platform != "darwin":
         print("The buddy needs macOS. Try `munshi preview --demo` in a browser.")
         return 1
+    from munshi.background import collector_thread, status_thread
     from munshi.ui.app import run
     from munshi.ui.service import Service
 
@@ -338,31 +357,10 @@ def cmd_start(args: argparse.Namespace) -> int:
             name="writer",
         )
     ]
+    threads.append(status_thread(home, clock, stop))
     if not args.demo:
         threads.append(collector_thread(home, config, stop))
     return run(Service(home, args.demo), threads, stop, self_test=args.self_test)
-
-
-def collector_thread(home: Path, config: Config, stop: threading.Event) -> threading.Thread:
-    """Build the real collector thread (never used with --demo).
-
-    Args:
-        home: Data home.
-        config: Settings.
-        stop: Stops the loop.
-
-    Returns:
-        The thread, not started.
-    """
-    from munshi.collect.files import FileScanner
-    from munshi.collect.git import GitScanner
-    from munshi.collect.loop import Collector
-    from munshi.collect.macos import MacWindowSource
-
-    collector = Collector(
-        Store.at_home(home), config, MacWindowSource(), SystemClock(), (GitScanner(), FileScanner())
-    )
-    return threading.Thread(target=collector.run, args=(stop,), daemon=True, name="collector")
 
 
 COMMANDS = {
@@ -376,6 +374,7 @@ COMMANDS = {
     "forget": cmd_forget,
     "preview": cmd_preview,
     "eval": cmd_eval,
+    "stats": cmd_stats,
     "start": cmd_start,
 }
 

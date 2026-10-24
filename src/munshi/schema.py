@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS events (
@@ -30,7 +30,9 @@ CREATE TABLE IF NOT EXISTS slots (
     written REAL NOT NULL,
     accepted INTEGER NOT NULL DEFAULT 0,
     rejected INTEGER NOT NULL DEFAULT 0,
-    fallback INTEGER NOT NULL DEFAULT 0
+    fallback INTEGER NOT NULL DEFAULT 0,
+    seconds REAL,
+    reasons TEXT NOT NULL DEFAULT '{}'
 );
 CREATE TABLE IF NOT EXISTS topics (
     name TEXT PRIMARY KEY COLLATE NOCASE,
@@ -49,8 +51,19 @@ CREATE TABLE IF NOT EXISTS notes (
     cites TEXT NOT NULL DEFAULT '[]',
     facts TEXT NOT NULL DEFAULT '{}'
 );
+CREATE TABLE IF NOT EXISTS counters (
+    day TEXT NOT NULL,
+    name TEXT NOT NULL,
+    n INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, name)
+);
 CREATE TABLE IF NOT EXISTS state (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
 """
+
+# Columns added after version 1, for databases created before them.
+ADDED_COLUMNS = {
+    "slots": {"seconds": "REAL", "reasons": "TEXT NOT NULL DEFAULT '{}'"},
+}

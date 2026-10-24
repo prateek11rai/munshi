@@ -1,11 +1,15 @@
+import subprocess
+
 import pytest
 
 from munshi.collect.fake import ScriptedScanner, ScriptedWindows
-from munshi.collect.loop import AWAY_AFTER, Collector, Window
+from munshi.collect.loop import AWAY_AFTER, Collector, Window, scrub
+from munshi.collect.procs import ProcessWords
 from munshi.config import Config
 from munshi.control import UNTIL_RESUME, forget, pause, resume
+from munshi.stats import counters
 from munshi.store import Event, Store
-from munshi.timefmt import FakeClock
+from munshi.timefmt import FakeClock, day_of
 
 T0 = 1_800_000_000.0
 
@@ -16,15 +20,17 @@ def run(collector, clock, seconds, step=10):
         clock.advance(step)
 
 
-def make(steps, away=None, config=None, scanners=(), own_pid=1):
+def make(steps, away=None, config=None, scanners=(), own_pid=1, procs=None):
     clock = FakeClock(T0)
     store = Store(":memory:")
     source = ScriptedWindows(
         clock,
-        [(T0 + at, app, title) for at, app, title in steps],
+        [(T0 + step[0], *step[1:]) for step in steps],
         [(T0 + a, T0 + b) for a, b in (away or [])],
     )
-    collector = Collector(store, config or Config(), source, clock, scanners, own_pid=own_pid)
+    collector = Collector(
+        store, config or Config(), source, clock, scanners, own_pid=own_pid, procs=procs
+    )
     return clock, store, collector
 
 
@@ -153,3 +159,158 @@ def test_broken_scanner_does_not_stop_collection(tmp_path):
 
 def test_window_dataclass():
     assert Window("Code").title is None
+
+
+def polls(store):
+    return counters(store, day_of(T0))
+
+
+def test_title_word_window_is_not_recorded_at_all():
+    config = Config(ignore_title_words=["ACME"])
+    clock, store, c = make(
+        [
+            (0, "Code", "a.py — tidepool"),
+            (30, "Google Chrome", "Quarterly plan - Acme Wiki"),
+            (60, "Google Chrome", "SQLite WAL mode"),
+        ],
+        config=config,
+    )
+    run(c, clock, 90)
+    assert windows(store) == [
+        ("window", "Code", "a.py — tidepool", 0, 30),
+        ("window", "Google Chrome", "SQLite WAL mode", 60, 80),
+    ]
+    assert polls(store) == {"recorded": 6, "title word": 3}
+
+
+def test_title_word_checked_before_redaction_and_on_app_name():
+    config = Config(ignore_title_words=["acme"])
+    clock, store, c = make(
+        [(0, "Google Chrome", "https://wiki.example.com/acme/page"), (30, "Acme Chat", None)],
+        config=config,
+    )
+    run(c, clock, 60)
+    assert windows(store) == []
+    assert polls(store) == {"title word": 6}
+
+
+def fake_ps(commands):
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        assert args[:3] == ["/bin/ps", "-o", "command="] and kwargs.get("shell") is not True
+        command = commands.get(int(args[-1]))
+        if isinstance(command, Exception):
+            raise command
+        if command is None:
+            return subprocess.CompletedProcess(args, 1, "", "")
+        return subprocess.CompletedProcess(args, 0, command + "\n", "")
+
+    run.calls = calls
+    return run
+
+
+FIREFOX = "/Applications/Firefox.app/Contents/MacOS/firefox"
+
+
+def test_process_word_skips_the_work_browser_profile():
+    ps = fake_ps(
+        {
+            11: f"{FIREFOX} -profile /Users/me/Library/Firefox/Profiles/x1.Acme-work",
+            12: f"{FIREFOX} -profile /Users/me/Library/Firefox/Profiles/y2.home",
+        }
+    )
+    config = Config(ignore_process_words=["acme"])
+    clock, store, c = make(
+        [
+            (0, "Firefox", "Team board", 11),
+            (30, "Firefox", "SQLite WAL mode", 12),
+            (60, "Firefox", "Team board", 11),
+        ],
+        config=config,
+        procs=ProcessWords(config.ignore_process_words, run=ps),
+    )
+    run(c, clock, 90)
+    assert windows(store) == [("window", "Firefox", "SQLite WAL mode", 30, 60)]
+    assert polls(store) == {"process word": 6, "recorded": 3}
+    assert [call[-1] for call in ps.calls] == ["11", "12"]
+
+
+def test_process_word_failure_records_and_retries():
+    ps = fake_ps({11: OSError("no ps")})
+    config = Config(ignore_process_words=["acme"])
+    words = ProcessWords(config.ignore_process_words, run=ps)
+    clock, store, c = make([(0, "Firefox", "SQLite WAL mode", 11)], config=config, procs=words)
+    run(c, clock, 30)
+    assert [w[1] for w in windows(store)] == ["Firefox"]
+    assert len(ps.calls) == 3 and words.cache == {}
+    assert not ProcessWords(["acme"], run=fake_ps({})).matches(99, "Firefox")
+
+
+def test_process_words_off_never_runs_ps():
+    ps = fake_ps({})
+    clock, store, c = make([(0, "Firefox", "x", 11)], procs=ProcessWords([], run=ps))
+    run(c, clock, 30)
+    assert ps.calls == [] and len(windows(store)) == 1
+
+
+def test_skip_counters_by_reason():
+    clock, store, c = make(
+        [
+            (0, "1Password", "Vault"),
+            (20, "Python", "Munshi", 1),
+            (40, None, None),
+            (60, "Safari", "Private Browsing"),
+            (80, "Code", "x"),
+        ],
+        away=[(100, 400)],
+    )
+    run(c, clock, 100)
+    pause(store, clock.now(), None)
+    run(c, clock, 20)
+    assert polls(store) == {
+        "ignored app": 2,
+        "own window": 2,
+        "no window": 2,
+        "private": 2,
+        "recorded": 2,
+        "paused": 2,
+    }
+    resume(store)
+    run(c, clock, 300)
+    assert polls(store)["away"] > 0
+
+
+def test_git_and_file_names_with_title_words_are_dropped(tmp_path):
+    events = [
+        Event(
+            "git",
+            T0,
+            T0,
+            repo="tidepool",
+            detail={
+                "branch": "main",
+                "commits": [
+                    {"hash": "a", "subject": "fix acme export"},
+                    {"hash": "b", "subject": "fix: cache tide chart"},
+                ],
+                "dirty": 2,
+                "files": ["acme_notes.md", "cache.py"],
+            },
+        ),
+        Event("git", T0, T0, repo="acme-tools", detail={"branch": "main"}),
+        Event("file", T0, T0, title="plan.md", detail={"folder": "Acme"}),
+        Event("file", T0, T0, title="tides.csv", detail={"folder": "notes"}),
+    ]
+    config = Config(allowed_roots=[str(tmp_path)], ignore_title_words=["acme"])
+    clock, store, c = make([(0, "Code", "x")], config=config, scanners=(ScriptedScanner(events),))
+    run(c, clock, 20)
+    kept = store.events(0, 4e9, ("git", "file"))
+    assert [(e.kind, e.repo, e.title) for e in kept] == [
+        ("git", "tidepool", None),
+        ("file", None, "tides.csv"),
+    ]
+    assert kept[0].detail["commits"] == [{"hash": "b", "subject": "fix: cache tide chart"}]
+    assert kept[0].detail["files"] == ["cache.py"] and kept[0].detail["dirty"] == 2
+    assert scrub(Event("git", 0, 0, repo="x"), []) is not None

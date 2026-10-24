@@ -19,6 +19,7 @@ log = logging.getLogger(__name__)
 LOOKBACK = 2 * 24 * 3600
 CLOSE_DAYS = 7
 RUN_LOCK = threading.Lock()
+MODEL_ERROR = "model error"
 
 
 @dataclass
@@ -126,6 +127,8 @@ class Writer:
         topics = self.store.topics()
         taken: set[str] = set()
         made, accepted, rejected = [], 0, 0
+        reasons: dict[str, int] = {}
+        seconds = None
         if self.model is not None and slot.window_items():
             began = time.monotonic()
             try:
@@ -135,7 +138,7 @@ class Writer:
                 replies = blk.parse(answer)
                 if replies is None:
                     rejected += 1
-                    result.reasons["bad shape"] = result.reasons.get("bad shape", 0) + 1
+                    reasons["bad shape"] = reasons.get("bad shape", 0) + 1
                 for reply in replies or []:
                     block, reason = blk.check(reply, slot, projects, topics, taken)
                     if block:
@@ -144,14 +147,21 @@ class Writer:
                         topics.append(block.topic)
                     else:
                         rejected += 1
-                        result.reasons[reason] = result.reasons.get(reason, 0) + 1
+                        reasons[reason] = reasons.get(reason, 0) + 1
             except ModelError:
                 result.model_errors += 1
-            result.seconds.append(time.monotonic() - began)
+                reasons[MODEL_ERROR] = 1
+            seconds = time.monotonic() - began
+            result.seconds.append(seconds)
         backup = blk.fallback(slot, taken, projects)
         for block in sorted(made + backup, key=lambda b: b.start):
             self.store.add_block(block)
-        self.store.mark_slot(start, self.clock.now(), accepted, rejected, len(backup))
+        self.store.mark_slot(
+            start, self.clock.now(), accepted, rejected, len(backup), seconds, reasons
+        )
+        for reason, count in reasons.items():
+            if reason != MODEL_ERROR:
+                result.reasons[reason] = result.reasons.get(reason, 0) + count
         result.slots += 1
         result.accepted += accepted
         result.rejected += rejected
@@ -185,6 +195,7 @@ class Writer:
         """
         result = Result()
         with RUN_LOCK:
+            began = time.monotonic()
             now = self.clock.now()
             for start in self.pending(now):
                 self.write_slot(start, result)
@@ -192,6 +203,10 @@ class Writer:
             self.close_days(now, result)
             cutoff = day_bounds(day_of(now))[0] - self.config.keep_events_days * 86400
             self.store.prune_events(cutoff)
+            self.store.set(
+                "last_write",
+                {"at": now, "slots": result.slots, "seconds": time.monotonic() - began},
+            )
         return result
 
 

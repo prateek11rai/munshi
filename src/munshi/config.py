@@ -3,7 +3,7 @@ import tomllib
 from pathlib import Path
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 DEFAULT_MODEL = "gemma4:e4b"
 DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
@@ -34,6 +34,14 @@ allowed_roots = []            # e.g. ["~/code", "~/Documents/notes"]
 # the journal and hours are kept.
 keep_events_days = 14
 
+# A window whose title (or app name) contains one of these words is not
+# recorded at all; git and file names containing one are dropped too.
+ignore_title_words = []       # e.g. ["acme"]
+
+# A window whose app was started with a command line containing one of these
+# words is not recorded at all (e.g. a browser profile path).
+ignore_process_words = []     # e.g. ["acme"]
+
 [apps]
 mode = "all"                  # or "only": record just the apps listed in `only`
 only = []
@@ -45,6 +53,20 @@ class ConfigError(ValueError):
     """Raised when the config file holds a value Munshi refuses to use."""
 
 
+def contains_word(text: str | None, words: list[str]) -> bool:
+    """Tell whether a text contains any of the words, ignoring case.
+
+    Args:
+        text: The text, or None.
+        words: Lower-cased words.
+
+    Returns:
+        True when one of the words appears anywhere in the text.
+    """
+    lowered = (text or "").lower()
+    return bool(lowered) and any(word in lowered for word in words)
+
+
 class AppsConfig(BaseModel):
     """Which apps are recorded.
 
@@ -53,6 +75,8 @@ class AppsConfig(BaseModel):
         only: App names recorded in "only" mode.
         ignore: App names never recorded, on top of the built-in list.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     mode: str = "all"
     only: list[str] = Field(default_factory=list)
@@ -99,15 +123,26 @@ class Config(BaseModel):
         allow_remote_model: Allow a non-local Ollama URL.
         allowed_roots: Folders scanned for git repos and changed files.
         keep_events_days: Days raw events are kept.
+        ignore_title_words: Words that keep a window (or git/file name) out of the record.
+        ignore_process_words: Words in an app's command line that keep its windows out.
         apps: App recording rules.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     model: str = DEFAULT_MODEL
     ollama_url: str = DEFAULT_OLLAMA_URL
     allow_remote_model: bool = False
     allowed_roots: list[str] = Field(default_factory=list)
     keep_events_days: int = Field(default=14, ge=1)
+    ignore_title_words: list[str] = Field(default_factory=list)
+    ignore_process_words: list[str] = Field(default_factory=list)
     apps: AppsConfig = Field(default_factory=AppsConfig)
+
+    @field_validator("ignore_title_words", "ignore_process_words")
+    @classmethod
+    def _clean_words(cls, value: list[str]) -> list[str]:
+        return sorted({word.strip().lower() for word in value if word.strip()})
 
     def roots(self) -> list[Path]:
         """Return the allowed roots as absolute paths.
@@ -208,7 +243,23 @@ def from_raw(raw: dict) -> Config:
         raw["ollama_url"] = url
     try:
         config = Config.model_validate(raw)
-    except ValueError as exc:
-        raise ConfigError(f"config.toml has a bad value: {exc}") from exc
+    except ValidationError as exc:
+        raise ConfigError(f"config.toml has a bad value: {describe(exc)}") from None
     config.check_model_url()
     return config
+
+
+def describe(exc: ValidationError) -> str:
+    """Name the bad settings without repeating their values (they may be private).
+
+    Args:
+        exc: The validation error.
+
+    Returns:
+        E.g. "apps.mode: Value error, apps.mode must be "all" or "only"".
+    """
+    parts = []
+    for error in exc.errors():
+        where = ".".join(str(part) for part in error["loc"]) or "config"
+        parts.append(f"{where}: {error['msg']}")
+    return "; ".join(parts)

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from munshi.records import Block, Event, Note, block_from, event_from, note_from
-from munshi.schema import SCHEMA, SCHEMA_VERSION
+from munshi.schema import ADDED_COLUMNS, SCHEMA, SCHEMA_VERSION
 
 __all__ = ["SCHEMA_VERSION", "Block", "Event", "Note", "Store"]
 
@@ -24,8 +24,16 @@ class Store:
         if self.path != ":memory:":
             self.db.execute("PRAGMA journal_mode=WAL")
         self.db.executescript(SCHEMA)
+        self._add_columns()
         self.db.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         self.db.commit()
+
+    def _add_columns(self) -> None:
+        for table, columns in ADDED_COLUMNS.items():
+            have = {row["name"] for row in self.db.execute(f"PRAGMA table_info({table})")}
+            for name, kind in columns.items():
+                if name not in have:
+                    self.db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {kind}")
 
     @classmethod
     def at_home(cls, home: Path) -> "Store":
@@ -213,7 +221,14 @@ class Store:
         return [block_from(row) for row in rows]
 
     def mark_slot(
-        self, start: float, written: float, accepted: int = 0, rejected: int = 0, fallback: int = 0
+        self,
+        start: float,
+        written: float,
+        accepted: int = 0,
+        rejected: int = 0,
+        fallback: int = 0,
+        seconds: float | None = None,
+        reasons: dict[str, int] | None = None,
     ) -> None:
         """Record that a slot has been written.
 
@@ -223,11 +238,13 @@ class Store:
             accepted: Model blocks accepted.
             rejected: Model blocks rejected.
             fallback: Code-made blocks.
+            seconds: Time the model call took; None when the model was not asked.
+            reasons: Rejections (and model errors) per check name.
         """
         self.db.execute(
-            "INSERT OR REPLACE INTO slots (start, written, accepted, rejected, fallback) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (start, written, accepted, rejected, fallback),
+            "INSERT OR REPLACE INTO slots (start, written, accepted, rejected, fallback, "
+            "seconds, reasons) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (start, written, accepted, rejected, fallback, seconds, json.dumps(reasons or {})),
         )
         self.db.commit()
 
@@ -339,6 +356,23 @@ class Store:
         db.execute("DELETE FROM topics WHERE name NOT IN (SELECT topic FROM blocks)")
         db.commit()
         return counts
+
+    # Counters
+
+    def bump(self, day: str, name: str, by: int = 1) -> None:
+        """Add to a per-day counter.
+
+        Args:
+            day: ISO date.
+            name: Counter name.
+            by: Amount to add.
+        """
+        self.db.execute(
+            "INSERT INTO counters (day, name, n) VALUES (?, ?, ?) "
+            "ON CONFLICT (day, name) DO UPDATE SET n = n + excluded.n",
+            (day, name, by),
+        )
+        self.db.commit()
 
     # State
 

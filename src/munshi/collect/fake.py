@@ -11,7 +11,7 @@ class ScriptedWindows:
     def __init__(
         self,
         clock: Clock,
-        steps: list[tuple[float, str | None, str | None]],
+        steps: list[tuple],
         away: list[tuple[float, float]] | None = None,
         pid: int = 4242,
     ) -> None:
@@ -19,9 +19,10 @@ class ScriptedWindows:
 
         Args:
             clock: The clock the script is read against.
-            steps: (time, app, title); each holds until the next. app None means no window.
+            steps: (time, app, title) or (time, app, title, pid); each holds until the
+                next. app None means no window.
             away: (start, end) stretches with no input.
-            pid: Process id reported for every window.
+            pid: Process id reported for windows whose step names none.
         """
         self.clock = clock
         self.steps = sorted(steps, key=lambda step: step[0])
@@ -36,12 +37,13 @@ class ScriptedWindows:
         """
         now = self.clock.now()
         current = None
-        for at, app, title in self.steps:
-            if at <= now:
-                current = (app, title)
-        if current is None or current[0] is None:
+        for step in self.steps:
+            if step[0] <= now:
+                current = step
+        if current is None or current[1] is None:
             return None
-        return Window(app=current[0], title=current[1], pid=self.pid)
+        pid = current[3] if len(current) > 3 else self.pid
+        return Window(app=current[1], title=current[2], pid=pid)
 
     def idle_seconds(self) -> float:
         """Return scripted idle time.

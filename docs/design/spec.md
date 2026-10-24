@@ -80,6 +80,8 @@ collector (every 10 s) ─▶ events ─▶ writer (every 15 min) ─▶ blocks 
 - **Ignored apps** (never recorded): 1Password, Bitwarden, Keychain Access, System Settings, loginwindow, ScreenSaverEngine, plus whatever the config adds.
 - **Only mode:** `apps.mode = "only"` records just the listed apps (for a work laptop or a demo).
 - **Private windows:** titles containing "Private Browsing", "Incognito" or "InPrivate" are recorded as the app name only.
+- **Title words** (`ignore_title_words`): a front window whose title or app name contains one (case-insensitive) is not recorded at all, exactly like an ignored app; checked before redaction. Git repos, branches, commit subjects and file names containing one are dropped too.
+- **Process words** (`ignore_process_words`): the front app's command line (`ps -o command= -p <pid>`, read once per process, only the yes/no kept) containing one means its windows are not recorded at all. This is how one browser profile (launched with a profile path or name) is skipped while another is recorded. A failed `ps` counts as no match and is retried on the next poll.
 - **Redaction before storage:** emails → `[email]`; URLs → host only; tokens (≥ 24 chars of hex/base64/alnum) → `[token]`; runs of ≥ 6 digits → `[number]`. Tested.
 - **Allowed roots** for git and files are empty by default: nothing is scanned until the person lists folders.
 - **Pause** stops all recording (window, git, files) until the time ends or Resume. **Forget last hour** deletes events, blocks and notes that overlap the last 60 min and rewrites today's note.
@@ -118,6 +120,7 @@ collector (every 10 s) ─▶ events ─▶ writer (every 15 min) ─▶ blocks 
 | `pause [--for 30m\|1h]` / `resume` | Pause or resume recording. |
 | `forget --last 60m` | Forget recent time. |
 | `preview [--demo]` | Serve the card on http://127.0.0.1:8765 with the same data, for a browser (and Playwright). |
+| `stats [--demo] [--day D]` | Numbers only, never recorded text: events by kind and minutes; polls recorded vs skipped by reason; slots written; blocks accepted, rejected by check, fallback; seconds per slot; last writer run; the running app's Accessibility flag, RSS and CPU (stored by `start` at launch and every 10 min). |
 | `eval [--model M] [--demo]` | Run the writer over the demo days with a model; print blocks accepted vs rejected, fallback rate, seconds per slot. |
 
 ## Config
@@ -129,12 +132,16 @@ model = "gemma4:e4b"
 ollama_url = "http://127.0.0.1:11434"
 allowed_roots = []            # e.g. ["~/github/prateek11rai", "~/Documents/notes"]
 keep_events_days = 14
+ignore_title_words = []       # e.g. ["acme"]
+ignore_process_words = []     # e.g. ["acme"]
 
 [apps]
 mode = "all"                  # or "only"
 only = []
 ignore = []                   # added to the built-in list
 ```
+
+Unknown keys are refused (a misspelt privacy key must not be silently ignored), and config errors name the key, never its value.
 
 Env overrides: `MUNSHI_HOME`, `MUNSHI_MODEL`, `MUNSHI_OLLAMA_URL`. No `.env`, no secrets anywhere.
 
