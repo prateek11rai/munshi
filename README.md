@@ -8,9 +8,11 @@ A small munshi (a clerk with spectacles, a cap and a ledger) sits on your Mac's 
 
 ## Demo
 
-<!-- demo video: the owner drags docs/demo/munshi-demo.mp4 in on github.com -->
+The munshi sits on your desktop (actual size: ![the munshi](docs/img/buddy.png)). Click it and the card opens beside it.
 
-Both shots are the made-up demo days (`munshi demo load`).
+![The card window on a Mac: where was I, today's blocks and the actions](docs/img/card-window.png)
+
+All shots are the made-up demo days (`munshi demo load`).
 
 | The card | Paused, with yesterday's hours |
 |---|---|
@@ -121,10 +123,10 @@ Measured with `gemma4:e4b` on an M-series Mac:
 
 | | Demo days | Real use |
 |---|---|---|
-| Active time labelled by the model | 95 % | about 65 % |
-| Seconds per slot | about 3 | 6.7 |
+| Active time labelled by the model | 95 % | about 80 % |
+| Seconds per slot, model loaded | about 3 | about 9 |
 
-Code labels the rest of the time. At rest the app uses about 32 MB of memory and 1 % CPU; Ollama keeps the model loaded for 5 minutes after a writer run, then frees it.
+Code labels the rest of the time. Ollama frees the model 5 minutes after a writer run, so a live run every 15 minutes usually starts with a cold load of about 17 seconds. At rest the app uses about 30–45 MB of memory and close to 0 % CPU.
 
 Homebrew's Ollama on Apple Silicon cannot constrain a reply to a JSON schema (it answers 501). Munshi then puts the schema in the prompt and parses the reply in code, and the checks stay the same.
 

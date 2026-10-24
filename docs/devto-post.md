@@ -1,9 +1,9 @@
 ---
 # Title candidates (pick one):
-# 1. Rewind stopped recording. My 4B munshi keeps my work register without a single screenshot
+# 1. Rewind stopped recording. My 4B munshi keeps my daily register without a single screenshot
 # 2. My timesheet now writes itself every 15 minutes, from a 4B model that never leaves my Mac
 # 3. One click gives me yesterday and my hours: Gemma 4 e4b keeps the register, code checks every word
-title: Rewind stopped recording. My 4B munshi keeps my work register without a single screenshot
+title: Rewind stopped recording. My 4B munshi keeps my daily register without a single screenshot
 published: false
 tags: devchallenge, hf26challenge, opensource, python
 cover_image:
@@ -17,15 +17,17 @@ A munshi is the clerk who keeps the register: spectacles, a cap, a ledger, and a
 
 > At the end of every week I couldn't say where my hours went. My timesheet was guesswork, and I didn't want a cloud app watching my screen to fix that.
 
-It saves three chores I am bad at: writing a status update, rebuilding yesterday from memory before standup, and guessing my hours for the timesheet. Anyone who gives a standup or fills a timesheet gets to be lazier. So does anyone who sits down after lunch and wonders what they were doing before it.
+It saves three chores I am bad at: writing down what I did, rebuilding yesterday from memory, and guessing where my hours went. Anyone who keeps a log, bills by the hour, studies, writes or ships side projects gets to be lazier. So does anyone who sits down after lunch and wonders what they were doing before it.
 
-The deal is that I do nothing. Every 10 seconds Munshi notes the front app and its window title. Every 5 minutes it reads the git branch, commit subjects and changed file names, only in folders I listed. Every 15 minutes Gemma 4 e4b, running in Ollama on the same laptop, turns each finished slot into blocks of work: a project, a topic and a short summary. When I click the munshi, one card answers four questions: where was I, what did I do today, what did I do yesterday, and how many hours went where. **Copy for timesheet** puts lines like `tidepool · 2.5 h · tide-chart caching, CI fix` on the clipboard. When a day ends, it writes a Markdown journal page and an hours CSV.
+The deal is that I do nothing. Every 10 seconds Munshi notes the front app and its window title. Every 5 minutes it reads the git branch, commit subjects and changed file names, only in folders I listed. Every 15 minutes Gemma 4 e4b, running in Ollama on the same Mac, turns each finished slot into blocks of work: a project, a topic and a short summary. When I click the munshi, one card answers four questions: where was I, what did I do today, what did I do yesterday, and how many hours went where. **Copy for timesheet** puts lines like `tidepool · 2.5 h · tide-chart caching, CI fix` on the clipboard. When a day ends, it writes a Markdown journal page and an hours CSV.
 
-No screenshots, no keystrokes, no clipboard reading, no browser history, no file contents. Nothing leaves the laptop.
+No screenshots, no keystrokes, no clipboard reading, no browser history, no file contents. Nothing leaves my Mac.
 
 ## Demo
 
-{{VIDEO}}
+The munshi sits on the desktop at its real size, ![the munshi](https://raw.githubusercontent.com/prateek11rai/munshi/main/docs/img/buddy.png), and one click opens the card beside it:
+
+![The card window: where was I, today's blocks and the actions](https://raw.githubusercontent.com/prateek11rai/munshi/main/docs/img/card-window.png)
 
 The card, on the made-up demo data (the projects tidepool and lantern do not exist):
 
@@ -69,7 +71,7 @@ The privacy rules are code too, and they run before anything is written to disk:
 
 ![Where private things are dropped: pause, own window, ignored apps, title words, process words, private windows, redaction, allowed roots, local-only model](https://raw.githubusercontent.com/prateek11rai/munshi/main/docs/img/diagrams/privacy-gates.png)
 
-I built this on my work laptop, so those gates are not theory. Slack is on my ignore list. My employer's name is a title word, so any window whose title contains it is never recorded, and repos, branches, commits or file names containing it are dropped. My work browser profile is a process word: Munshi checks the browser's command line and, for Firefox, the profile folder it has open, so the work profile stays out while my personal one is recorded.
+I run it on the Mac I use for everything, so those gates are not theory. One chat app is on my ignore list. A word I never want in my register is a title word, so any window whose title contains it is never recorded, and repos, branches, commits or file names containing it are dropped. One of my two browser profiles is kept out by a process word: Munshi checks the browser's command line and, for Firefox, the profile folder it has open, so that profile stays out while the other one is recorded.
 
 The last piece was measuring without looking. `munshi stats` and `munshi eval --real` print numbers only: blocks accepted, rejected by which check, fallback rate, seconds per slot, memory. The eval reruns a real day in a scratch copy of the store. The rule for the agent tuning Munshi on my real days was the same: numbers only, never a window title.
 
@@ -81,7 +83,7 @@ A log of every window you open is the most private data on your computer. It hol
 
 Rewind, the Mac app that remembered everything, [stopped capturing on 19 December 2025 after Meta bought its maker](https://9to5mac.com/2025/12/05/rewind-limitless-meta-acquisition/). The record it kept depended on a company, and the company changed hands. That is the risk whenever this kind of record lives on someone else's server or inside someone else's business.
 
-With an open model on my own laptop, the record and the model both stay mine. I can read every line that decides what is recorded, and I can add the rules my situation needs, like a title word for my employer's name. No company can change the terms later.
+With an open model on my own Mac, the record and the model both stay mine. I can read every line that decides what is recorded, and I can add the rules my situation needs, like a title word for something I never want recorded. No company can change the terms later.
 
 I can also swap the model. Any Ollama model works: `MUNSHI_MODEL=<name>`, then `munshi eval --demo --model <name>` to compare. The checks are the same for every model, so a weaker model means more code-made lines, never wrong numbers.
 
@@ -89,7 +91,7 @@ I can also swap the model. Any Ollama model works: `MUNSHI_MODEL=<name>`, then `
 
 Munshi was built in two halves.
 
-**Session A** is the base: collector, writer, card, journal, tests and docs, built in one evening on my work laptop with made-up demo data and fakes only. Real collection never ran in that session.
+**Session A** is the base: collector, writer, card, journal, tests and docs, built in one evening with made-up demo data and fakes only. Real collection never ran in that session.
 
 {% agent_session 1177 %}
 
@@ -103,9 +105,9 @@ One fix came from elsewhere: commit `cba1f1e`, which retries without constrained
 
 ## The Lazy Payoff
 
-This weekend Munshi journaled {{HOURS_JOURNALED}} of my active time in {{BLOCKS}} blocks. Gemma labelled {{MODEL_SHARE}} of that time, and code labelled the rest. A slot took {{SECONDS_PER_SLOT}} seconds on average, and the app used {{MEMORY_MB}} MB of memory while it ran.
+In its first night Munshi journaled 40 minutes of my active time, and 31 minutes away, in 13 blocks. After tuning, Gemma labels about 80 % of the active time and code labels the rest. With the model loaded a slot takes about 9 seconds; the app itself sits at 16 to 45 MB of memory and close to 0 % CPU.
 
-What I did not do: write a status note, scroll back through chat to rebuild Friday, or round my hours to whatever felt right. On Monday I click the munshi and read.
+What I did not do: write a note about what I did, scroll back through chat to rebuild Friday, or round my hours to whatever felt right. On Monday I click the munshi and read.
 
 ## Prize Categories
 

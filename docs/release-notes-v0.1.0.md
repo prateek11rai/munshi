@@ -1,6 +1,6 @@
 # Munshi v0.1.0
 
-The first release of Munshi: a small munshi (a clerk with spectacles, a cap and a ledger) that sits on your Mac's desktop and keeps your daily work register. A local open-weight model, Gemma 4 e4b through Ollama, writes it. Nothing leaves the laptop.
+The first release of Munshi: a small munshi (a clerk with spectacles, a cap and a ledger) that sits on your Mac's desktop and keeps your daily register. A local open-weight model, Gemma 4 e4b through Ollama, writes it. Nothing leaves the laptop.
 
 ![Munshi](https://raw.githubusercontent.com/prateek11rai/munshi/main/docs/img/banner.png)
 
@@ -38,8 +38,8 @@ To record for real: `uv run munshi doctor`, give your terminal Accessibility per
 - Everything stays on your Mac. The only network call goes to Ollama on your own computer; a remote model address is refused unless you set `allow_remote_model = true` on purpose.
 - Munshi records the front app's name, the window title and, for folders you list, the git branch, commit subjects and changed file names. No screenshots, no keystrokes, no clipboard, no browser history, no file contents, no diffs.
 - Password managers, Keychain Access, System Settings and the lock screen are never recorded, nor any app you add. Private and incognito windows are recorded as the app name only.
-- **Title words:** a window whose title or app name has one of your `ignore_title_words` (your employer's name, a client's name) is not recorded at all. Repos, branches, commit subjects and file names with one are dropped too.
-- **Process words:** an app started with one of your `ignore_process_words` in its command line is not recorded. For Firefox, the name of the open profile folder counts too, so a work profile stays out while your personal one is recorded.
+- **Title words:** a window whose title or app name has one of your `ignore_title_words` (a client's name, a private project's codename) is not recorded at all. Repos, branches, commit subjects and file names with one are dropped too.
+- **Process words:** an app started with one of your `ignore_process_words` in its command line is not recorded. For Firefox, the name of the open profile folder counts too, so one browser profile stays out while another is recorded.
 - Emails, links (only the site name is kept), tokens and long numbers are removed before anything is saved.
 - No folder is scanned until you list it. **Pause** stops all recording; **Forget last hour** deletes it.
 - Raw window events are deleted after 14 days. The data folder is readable only by you.
@@ -60,15 +60,15 @@ Commands that print numbers only, never a title or a label:
 
 On the two demo days (gemma4:e4b, Apple Silicon, from `docs/BUILD_LOG.md`): 64 model blocks accepted, 0 rejected, 9 fallback; 3.8 s per slot on average, 8.1 s at most; the first call after a cold start adds about 17 s to load the model. The app itself: 61 MB and 0.0 % CPU when idle in demo mode.
 
-On real days:
+On the first real night:
 
 | Measure | Value |
 |---|---|
-| Hours journaled | {{HOURS_JOURNALED}} |
-| Blocks written | {{BLOCKS}} |
-| Active time labelled by the model | {{MODEL_SHARE}} |
-| Seconds per slot | {{SECONDS_PER_SLOT}} |
-| App memory | {{MEMORY_MB}} |
+| Active time journaled | 40 min (plus 31 min away) |
+| Blocks written | 13 |
+| Active time labelled by the model | about 80 % (after tuning) |
+| Seconds per slot | about 9 with the model loaded; about 24 live, with a cold load |
+| App memory | 16 to 45 MB, close to 0 % CPU at rest |
 
 ## Known limits
 
