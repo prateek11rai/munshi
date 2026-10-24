@@ -1,6 +1,6 @@
 # Munshi v0.1.0
 
-The first release of Munshi: a small munshi (a clerk with spectacles, a cap and a ledger) that sits on your Mac's desktop and keeps your daily register. A local open-weight model, Gemma 4 e4b through Ollama, writes it. Nothing leaves the laptop.
+The first release of Munshi: a small munshi (a clerk with spectacles, a cap and a ledger) that sits on your Mac's desktop and keeps your daily register. A local open-weight model, Gemma 4 e4b through Ollama, writes it. Nothing leaves your Mac.
 
 ![Munshi](https://raw.githubusercontent.com/prateek11rai/munshi/main/docs/img/banner.png)
 
