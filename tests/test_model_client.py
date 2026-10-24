@@ -100,3 +100,32 @@ def test_chat_json_retries_when_structured_output_unavailable():
     assert model.chat_json("sys", "user", {"type": "object"}) == {"blocks": []}
     assert "format" in seen[0] and "format" not in seen[1]
     assert "matching this schema" in seen[1]["messages"][1]["content"]
+    assert seen[1]["options"] == {"temperature": 0, "num_ctx": 8192}
+
+
+def test_501_is_remembered_for_the_client_lifetime():
+    seen = []
+
+    def opener(request, timeout):
+        seen.append(json.loads(request.data))
+        if "format" in seen[-1]:
+            raise urllib.error.HTTPError(request.full_url, 501, "Not Implemented", None, None)
+        return Response(json.dumps({"message": {"content": '{"blocks": []}'}}).encode())
+
+    model = Ollama("http://127.0.0.1:11434", "gemma4:e4b", opener=opener)
+    for _ in range(3):
+        assert model.chat_json("sys", "user", {"type": "object"}) == {"blocks": []}
+    assert ["format" in body for body in seen] == [True, False, False, False]
+    assert model.structured is False
+    fresh = Ollama("http://127.0.0.1:11434", "gemma4:e4b", opener=opener)
+    assert fresh.structured is True
+
+
+def test_other_http_errors_keep_structured_output():
+    def opener(request, timeout):
+        raise urllib.error.HTTPError(request.full_url, 500, "boom", None, None)
+
+    model = Ollama("http://127.0.0.1:11434", "gemma4:e4b", opener=opener)
+    with pytest.raises(ModelError):
+        model.chat_json("sys", "user", {})
+    assert model.structured is True

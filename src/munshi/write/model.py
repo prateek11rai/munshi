@@ -100,6 +100,7 @@ class Ollama:
         self.name = name
         self.timeout = timeout
         self.opener = opener
+        self.structured = True
 
     @classmethod
     def from_config(cls, config: Config, name: str | None = None) -> "Ollama":
@@ -141,7 +142,8 @@ class Ollama:
 
         Tries Ollama's constrained `format` first. Homebrew's MLX build returns
         HTTP 501 ("structured output is unavailable"); then the schema goes in
-        the prompt and the reply is parsed in code.
+        the prompt and the reply is parsed in code, and this client stops
+        sending `format` for the rest of its life.
 
         Args:
             system: Instructions.
@@ -154,27 +156,29 @@ class Ollama:
         Raises:
             ModelError: On a network error, timeout or invalid JSON.
         """
-        messages = [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ]
         body = {
             "model": self.name,
             "stream": False,
             "think": False,
-            "format": schema,
             "keep_alive": KEEP_ALIVE,
             "options": {"temperature": 0, "num_ctx": NUM_CTX},
-            "messages": messages,
         }
-        try:
-            reply = self._request("/api/chat", body, self.timeout)
-        except ModelError as exc:
-            if not _structured_output_unavailable(exc):
-                raise
-            fallback = dict(body)
-            del fallback["format"]
-            fallback["messages"] = [
+        reply = None
+        if self.structured:
+            messages = [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ]
+            try:
+                reply = self._request(
+                    "/api/chat", {**body, "format": schema, "messages": messages}, self.timeout
+                )
+            except ModelError as exc:
+                if not _structured_output_unavailable(exc):
+                    raise
+                self.structured = False
+        if reply is None:
+            messages = [
                 {"role": "system", "content": system},
                 {
                     "role": "user",
@@ -184,7 +188,7 @@ class Ollama:
                     ),
                 },
             ]
-            reply = self._request("/api/chat", fallback, self.timeout)
+            reply = self._request("/api/chat", {**body, "messages": messages}, self.timeout)
         try:
             content = reply["message"]["content"]
         except (KeyError, TypeError) as exc:

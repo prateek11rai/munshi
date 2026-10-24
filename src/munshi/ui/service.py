@@ -37,8 +37,16 @@ class Service:
         self.home = home
         self.demo = demo_mode
         self.make_model = model or (lambda config: Ollama.from_config(config))
+        self.models: dict[tuple[str, str], JsonModel | None] = {}
         self.lock = threading.Lock()
         self.busy = False
+
+    def _model(self, config: Config) -> JsonModel | None:
+        # One client per model, so what it learnt (e.g. no structured output) is kept.
+        key = (config.ollama_url, config.model)
+        if key not in self.models:
+            self.models[key] = self.make_model(config)
+        return self.models[key]
 
     def _open(self) -> tuple[Store, Config, Clock]:
         config = load_config(self.home)
@@ -154,7 +162,7 @@ class Service:
         try:
             store, config, clock = self._open()
             try:
-                model = self.make_model(config)
+                model = self._model(config)
                 status = getattr(model, "status", None)
                 if model is not None and status is not None and not status()[0]:
                     model = None
