@@ -186,6 +186,22 @@ def load_config(home: Path) -> Config:
         raw = tomllib.loads(path.read_text())
     except tomllib.TOMLDecodeError as exc:
         raise ConfigError(f"config.toml is not valid TOML: {exc}") from exc
+    return from_raw(raw)
+
+
+def from_raw(raw: dict) -> Config:
+    """Validate settings after applying env overrides.
+
+    Args:
+        raw: Settings as read from TOML (may be empty).
+
+    Returns:
+        The validated config.
+
+    Raises:
+        ConfigError: If a value is refused.
+    """
+    raw = dict(raw)
     if model := os.environ.get("MUNSHI_MODEL"):
         raw["model"] = model
     if url := os.environ.get("MUNSHI_OLLAMA_URL"):

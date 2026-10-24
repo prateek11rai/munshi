@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Munshi</title>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body class="buddy">
+<div id="buddy" title="Munshi"><img src="munshi.svg" alt="Munshi" draggable="false"><span class="pause-mark"></span></div>
+<script>
+(function () {
+  "use strict";
+  var down = null;
+  function api() { return window.pywebview && window.pywebview.api; }
+  window.setPaused = function (on) { document.body.classList.toggle("paused", !!on); };
+  document.getElementById("buddy").addEventListener("mousedown", function (e) {
+    down = { x: e.screenX, y: e.screenY };
+  });
+  window.addEventListener("mouseup", function (e) {
+    if (!down || !api()) { down = null; return; }
+    var moved = Math.abs(e.screenX - down.x) + Math.abs(e.screenY - down.y) > 4;
+    down = null;
+    if (moved) { api().buddy_moved(); } else { api().toggle_card(); }
+  });
+  function poll() { if (api()) { api().buddy_state().then(function (s) { window.setPaused(s.paused); }); } }
+  window.addEventListener("pywebviewready", function () { poll(); setInterval(poll, 15000); });
+})();
+</script>
+</body>
+</html>

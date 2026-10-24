@@ -73,6 +73,8 @@ class Item:
                 out["uncommitted_files"] = self.detail["files"][:10]
         else:
             out = {"id": self.id, "changed_file": self.title, "folder": self.detail.get("folder")}
+        if self.project:
+            out["project"] = self.project
         return out
 
 

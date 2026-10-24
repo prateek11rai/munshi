@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Munshi</title>
+<link rel="stylesheet" href="theme.css">
+</head>
+<body class="card">
+<header class="bar">
+  <img class="logo" src="munshi.svg" alt="">
+  <span class="name">Munshi</span>
+  <span id="paused-badge" class="badge" hidden></span>
+  <button id="close" class="icon" title="Close (Esc)" aria-label="Close">×</button>
+</header>
+<main>
+  <section id="where">
+    <h2>Where was I</h2>
+    <p id="where-text" class="lead"></p>
+    <p id="where-facts" class="facts"></p>
+    <p id="where-updated" class="muted"></p>
+  </section>
+  <section id="today">
+    <h2>Today</h2>
+    <ul id="today-list" class="timeline"></ul>
+  </section>
+  <section id="yesterday">
+    <h2>Yesterday</h2>
+    <ul id="yesterday-list"></ul>
+    <p id="yesterday-total" class="muted"></p>
+  </section>
+  <section id="hours">
+    <div class="row">
+      <h2>Hours</h2>
+      <div class="seg">
+        <button data-view="today" aria-pressed="true">Today</button><button data-view="yesterday" aria-pressed="false">Yesterday</button>
+      </div>
+    </div>
+    <p id="hours-total" class="muted"></p>
+    <ul id="hours-list" class="bars"></ul>
+    <button id="copy">Copy for timesheet</button>
+    <span id="copy-note" class="muted"></span>
+  </section>
+</main>
+<footer>
+  <button id="refresh">Refresh now</button>
+  <button id="pause">Pause</button>
+  <span id="pause-options" hidden>
+    <button data-pause="30">30 min</button><button data-pause="60">1 h</button><button data-pause="until">Until I resume</button>
+  </span>
+  <button id="resume" hidden>Resume</button>
+  <button id="forget">Forget last hour</button>
+  <button id="journal">Open journal</button>
+  <p id="status" class="muted" role="status"></p>
+</footer>
+<script src="card.js"></script>
+</body>
+</html>
