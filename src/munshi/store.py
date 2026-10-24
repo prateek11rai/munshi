@@ -189,15 +189,25 @@ class Store:
         event.id = cur.lastrowid
         return event.id
 
-    def extend_event(self, event_id: int, end: float) -> None:
+    def extend_event(self, event_id: int, end: float, was: float | None = None) -> bool:
         """Move an event's end time.
 
         Args:
             event_id: The event row id.
             end: The new end, epoch seconds.
+            was: The end the caller last wrote; when given, the update only happens if
+                the row still has it (so a forgotten or trimmed event is not revived).
+
+        Returns:
+            False when the event is gone or was changed by someone else.
         """
-        self.db.execute("UPDATE events SET end = ? WHERE id = ?", (end, event_id))
+        sql, params = "UPDATE events SET end = ? WHERE id = ?", [end, event_id]
+        if was is not None:
+            sql += " AND end = ?"
+            params.append(was)
+        cur = self.db.execute(sql, params)
         self.db.commit()
+        return cur.rowcount > 0
 
     def events(self, start: float, end: float, kinds: tuple[str, ...] = ()) -> list[Event]:
         """Return events overlapping a time range, oldest first.
@@ -263,7 +273,7 @@ class Store:
     # Blocks and slots
 
     def add_block(self, block: Block) -> int:
-        """Insert a block and remember its topic.
+        """Insert a block and remember its topic (code-made labels are not topics).
 
         Args:
             block: The block; its id is set on return.
@@ -286,10 +296,11 @@ class Store:
                 json.dumps(block.evidence),
             ),
         )
-        self.db.execute(
-            "INSERT OR IGNORE INTO topics (name, project, first_seen) VALUES (?, ?, ?)",
-            (block.topic, block.project, block.start),
-        )
+        if block.source != "fallback":
+            self.db.execute(
+                "INSERT OR IGNORE INTO topics (name, project, first_seen) VALUES (?, ?, ?)",
+                (block.topic, block.project, block.start),
+            )
         self.db.commit()
         block.id = cur.lastrowid
         return block.id
@@ -402,29 +413,39 @@ class Store:
 
     # Forget
 
-    def forget(self, start: float, end: float) -> dict[str, int]:
-        """Delete events, blocks and notes overlapping a range, and orphaned topics.
+    def forget(self, start: float, end: float, slot: float | None = None) -> dict[str, int]:
+        """Forget a time range.
+
+        Events are cut at `start` (or deleted when they begin inside the range),
+        overlapping blocks and notes are deleted, and so are topics no block uses.
 
         Args:
             start: Range start, epoch seconds.
             end: Range end, epoch seconds.
+            slot: Start of the slot holding `start`; slots from here are marked unwritten
+                so the part before `start` can be written again.
 
         Returns:
-            Rows deleted per table.
+            Rows changed per kind: events deleted, events trimmed, blocks, notes.
         """
-        counts = {}
-        for table, lo, hi in (
-            ("events", "start", "end"),
-            ("blocks", "start", "end"),
-            ("notes", "span_start", "span_end"),
-        ):
-            cur = self.db.execute(
-                f"DELETE FROM {table} WHERE {hi} > ? AND {lo} < ?",  # noqa: S608
-                (start, end),
-            )
-            counts[table] = cur.rowcount
-        self.db.execute("DELETE FROM topics WHERE name NOT IN (SELECT topic FROM blocks)")
-        self.db.commit()
+        db = self.db
+        counts = {
+            "events": db.execute(
+                "DELETE FROM events WHERE start >= ? AND start < ?", (start, end)
+            ).rowcount,
+            "trimmed": db.execute(
+                "UPDATE events SET end = ? WHERE start < ? AND end > ?", (start, start, start)
+            ).rowcount,
+            "blocks": db.execute(
+                "DELETE FROM blocks WHERE end > ? AND start < ?", (start, end)
+            ).rowcount,
+            "notes": db.execute(
+                "DELETE FROM notes WHERE span_end > ? AND span_start < ?", (start, end)
+            ).rowcount,
+        }
+        db.execute("DELETE FROM slots WHERE start >= ?", (start if slot is None else slot,))
+        db.execute("DELETE FROM topics WHERE name NOT IN (SELECT topic FROM blocks)")
+        db.commit()
         return counts
 
     # State

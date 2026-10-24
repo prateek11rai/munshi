@@ -37,3 +37,8 @@ def test_redact_none():
 def test_redact_token_inside_path():
     out = redact("/srv/a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6/logs")
     assert out == "/srv/[token]/logs"
+
+
+def test_long_snake_names_survive_but_prefixed_keys_do_not():
+    assert redact("test_file_scan_names_only_outs0") == "test_file_scan_names_only_outs0"
+    assert redact("sk_live_4eC39HqLyjWDarjtT1zdp7dc") == "[token]"

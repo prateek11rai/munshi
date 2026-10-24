@@ -54,10 +54,13 @@ def test_forget_overlapping_and_orphan_topics():
     store.add_block(Block(0, 0, 100, 100, "Other", "old topic", "s", "model"))
     store.add_block(Block(3000, 3000, 3700, 700, "Other", "secret topic", "s", "model"))
     store.add_note(Note("where", "d", 3700, 0, 3700, "t", "model"))
-    counts = store.forget(3600, 7200)
-    assert counts == {"events": 1, "blocks": 1, "notes": 1}
+    store.add_event(Event("window", 3650, 3700, app="C"))
+    store.mark_slot(2700, 3700)
+    counts = store.forget(3600, 7200, slot=2700)
+    assert counts == {"events": 1, "trimmed": 1, "blocks": 1, "notes": 1}
     assert store.topics() == ["old topic"]
-    assert [e.app for e in store.events(0, 10_000)] == ["A"]
+    assert [(e.app, e.end) for e in store.events(0, 10_000)] == [("A", 100), ("B", 3600)]
+    assert store.written_slots(0, 10_000) == set()
 
 
 def test_state():

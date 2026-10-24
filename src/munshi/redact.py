@@ -7,6 +7,8 @@ _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za
 _RUN = re.compile(r"(?<![A-Za-z0-9+/=_-])[A-Za-z0-9+/=_-]{24,}(?![A-Za-z0-9+/=_-])")
 _DIGITS = re.compile(r"\d{6,}")
 _ALNUM = re.compile(r"[A-Za-z0-9]+")
+_BASE64 = re.compile(r"[A-Za-z0-9+/=]+")
+_SEP = re.compile(r"[_-]")
 
 
 def _host(match: re.Match[str]) -> str:
@@ -17,14 +19,19 @@ def _host(match: re.Match[str]) -> str:
     return host or "[url]"
 
 
+def _mixed(text: str) -> bool:
+    return any(c.isdigit() for c in text) and any(c.isalpha() for c in text)
+
+
 def _is_token(part: str) -> bool:
     if len(part) < 24:
         return False
     if _ALNUM.fullmatch(part):
         return True
-    has_digit = any(c.isdigit() for c in part)
-    has_letter = any(c.isalpha() for c in part)
-    return has_digit and has_letter
+    if _BASE64.fullmatch(part):
+        return _mixed(part)
+    # snake/kebab names stay; prefixed keys like "ghp_<long>" have one long mixed segment
+    return any(len(seg) >= 16 and _mixed(seg) for seg in _SEP.split(part))
 
 
 def _token(match: re.Match[str]) -> str:
