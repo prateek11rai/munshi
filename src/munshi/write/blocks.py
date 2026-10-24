@@ -5,7 +5,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from munshi.store import Block
-from munshi.write.slots import BROWSERS, Item, Slot, segments
+from munshi.write.slots import BROWSERS, EDITORS, TERMINALS, Item, Slot, segments
 
 MAX_TOPIC_WORDS = 4
 MAX_SUMMARY_WORDS = 14
@@ -18,6 +18,11 @@ STOP_WORDS = {
     "work", "worked", "working", "would", "your", "you", "time", "today", "various",
 }  # fmt: skip
 SHORT_WORDS = {"the", "and", "for", "not", "but", "was", "are", "you", "all", "get", "use", "new"}
+APP_WORDS = {w for name in EDITORS | TERMINALS | BROWSERS for w in name.split()} | {
+    "tmux", "terminal", "shell", "zsh", "bash", "browser", "finder", "window", "windows",
+    "app", "apps", "tab", "tabs", "desktop", "slack", "preview", "mail",
+}  # fmt: skip
+FALLBACK_SEP = " · "
 
 SYSTEM = """\
 You keep a work log. You get one 15-minute slot of computer activity as JSON items
@@ -110,6 +115,77 @@ def content_words(text: str) -> list[str]:
         The content words.
     """
     return [w for w in words(text) if len(w) >= 4 and w not in STOP_WORDS]
+
+
+def app_words(apps: list[str] | tuple[str, ...] = ()) -> set[str]:
+    """Return words that only name apps: known editors, terminals, browsers and the given apps.
+
+    Args:
+        apps: App names seen in the evidence.
+
+    Returns:
+        Lower-case words.
+    """
+    return APP_WORDS | {w for app in apps for w in words(app)}
+
+
+def without_app_words(text: str, apps: list[str] | tuple[str, ...] = ()) -> str:
+    """Drop app-name words from evidence, so grounding needs a real subject.
+
+    Args:
+        text: Evidence text.
+        apps: App names seen in the evidence.
+
+    Returns:
+        The remaining words.
+    """
+    names = app_words(apps)
+    return " ".join(w for w in words(text) if w not in names)
+
+
+def only_app_words(text: str, apps: list[str] | tuple[str, ...] = ()) -> bool:
+    """Tell whether a text names nothing but apps (e.g. "WezTerm tmux").
+
+    Args:
+        text: A topic or sentence.
+        apps: App names seen in the evidence.
+
+    Returns:
+        True when every meaningful word is an app word.
+    """
+    names = app_words(apps)
+    meaningful = [
+        w for w in words(text) if len(w) >= 3 and w not in STOP_WORDS and w not in SHORT_WORDS
+    ]
+    return bool(meaningful) and all(w in names for w in meaningful)
+
+
+def fallback_parts(block: Block) -> tuple[str, str]:
+    """Split a code-made block's label into its app and its window part.
+
+    Args:
+        block: A fallback block, labelled "<app> · <shortened title>" or "<app>".
+
+    Returns:
+        (app, window); window is "" when it names nothing but apps (e.g. "tmux").
+    """
+    app, _, window = block.topic.partition(FALLBACK_SEP)
+    if not window or only_app_words(window, [app]):
+        window = ""
+    return app, window
+
+
+def fallback_subject(block: Block) -> str:
+    """Name a code-made block plainly, never as if its app were a topic.
+
+    Args:
+        block: A fallback block.
+
+    Returns:
+        E.g. "nav.md in Code", or "in WezTerm" when only the app is known.
+    """
+    app, window = fallback_parts(block)
+    return f"{window} in {app}" if window else f"in {app}"
 
 
 def grounded(text: str, evidence: str, min_prefix: int = 4) -> bool:
@@ -244,6 +320,8 @@ def check(
         topic = existing[topic.lower()]
     elif len(topic.split()) > MAX_TOPIC_WORDS:
         return None, "topic too long"
+    if only_app_words(topic, [i.app for i in windows if i.app]):
+        return None, "topic is an app"
     summary = clean(reply.summary)
     summary = summary[:1].upper() + summary[1:]
     if not summary or len(summary.split()) > MAX_SUMMARY_WORDS:
@@ -354,7 +432,7 @@ def fallback(slot: Slot, taken: set[str], projects: list[str]) -> list[Block]:
     for group in groups:
         main = max(group, key=lambda i: i.seconds)
         title = short_title(main)
-        label = f"{main.app} · {title}" if title else (main.app or "Unknown")
+        label = f"{main.app}{FALLBACK_SEP}{title}" if title else (main.app or "Unknown")
         project = main.project or "Other"
         blocks.append(make_block(slot, group, list(group), project, label, label, "fallback"))
         taken.update(i.id for i in group)
