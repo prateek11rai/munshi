@@ -26,6 +26,7 @@ def test_doctor_creates_nothing(tmp_path, capsys):
 def test_demo_commands(tmp_path, capsys):
     assert main(["demo", "load"]) == 0
     assert (tmp_path / ".data" / "demo" / "munshi.db").exists()
+    assert len(list((tmp_path / ".data" / "demo" / "journal").glob("*.md"))) == 1
     assert main(["journal", "--demo"]) == 0
     out = capsys.readouterr().out
     assert "## Timeline" in out and "Active 6 h 45 min" in out

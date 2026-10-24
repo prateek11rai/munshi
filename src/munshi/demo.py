@@ -8,6 +8,7 @@ from pathlib import Path
 from munshi.config import demo_home, ensure_home
 from munshi.store import Block, Event, Note, Store
 from munshi.timefmt import SLOT_SECONDS, SystemClock, at, day_bounds, day_of, slot_start
+from munshi.write import journal
 from munshi.write.notes import facts
 
 DEMO_NOW = "16:05"
@@ -165,7 +166,9 @@ def add_blocks(store: Store, day: date, segments: list[Segment], until: float) -
 
 
 def load(home: Path | None = None, today: date | None = None) -> Path:
-    """Write the two made-up days into the demo home, replacing what was there.
+    """Write the two made-up days (and yesterday's journal page) into the demo home.
+
+    Replaces what was there.
 
     Args:
         home: Demo home; defaults to `./.data/demo`.
@@ -204,6 +207,7 @@ def load(home: Path | None = None, today: date | None = None) -> Path:
         Note("where", today.isoformat(), written, written - 2 * 3600, written, WHERE_TEXT, "demo",
              [b.id for b in recent if b.id], facts(store, written))
     )  # fmt: skip
+    journal.write(store, home, yesterday)
     store.close()
     return home
 
