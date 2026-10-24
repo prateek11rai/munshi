@@ -3,7 +3,7 @@
 # 1. Rewind stopped recording. My 4B munshi keeps my daily register without a single screenshot
 # 2. My timesheet now writes itself every 15 minutes, from a 4B model that never leaves my Mac
 # 3. One click gives me yesterday and my hours: Gemma 4 e4b keeps the register, code checks every word
-title: Rewind stopped recording. My 4B munshi keeps my daily register without a single screenshot
+title: My hours now write themselves every 15 minutes, from a 4B model that never leaves my Mac
 published: false
 tags: devchallenge, hf26challenge, opensource, python
 cover_image:
@@ -97,7 +97,7 @@ Munshi was built in two halves.
 
 **Session B** turned on real collection behind the privacy filters above and tuned the prompt and the checks, looking only at numbers.
 
-{% agent_session {{SESSION_B}} %}
+{% agent_session 1182 %}
 
 In both halves one agent session acted as planner, writing the spec and the briefs and reviewing every diff, while builder sessions in other tmux windows wrote the code.
 
