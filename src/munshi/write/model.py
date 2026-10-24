@@ -1,4 +1,5 @@
 import json
+import re
 import urllib.error
 import urllib.request
 from collections.abc import Callable
@@ -13,6 +14,49 @@ KEEP_ALIVE = "5m"
 
 class ModelError(RuntimeError):
     """The model could not be reached or did not answer valid JSON."""
+
+
+def decode_json_object(text: str) -> dict[str, Any]:
+    """Parse a JSON object from a model reply, including fenced or padded text.
+
+    Args:
+        text: Raw model content.
+
+    Returns:
+        The decoded object.
+
+    Raises:
+        ModelError: If no JSON object can be read.
+    """
+    blob = text.strip()
+    if blob.startswith("```"):
+        blob = re.sub(r"^```(?:json)?\s*", "", blob)
+        blob = re.sub(r"\s*```$", "", blob)
+    try:
+        answer = json.loads(blob)
+    except ValueError:
+        start, end = blob.find("{"), blob.rfind("}")
+        if start < 0 or end <= start:
+            raise ModelError("model answer is not JSON") from None
+        try:
+            answer = json.loads(blob[start : end + 1])
+        except ValueError as exc:
+            raise ModelError("model answer is not JSON") from exc
+    if not isinstance(answer, dict):
+        raise ModelError("model answer is not a JSON object")
+    return answer
+
+
+def _structured_output_unavailable(exc: BaseException) -> bool:
+    """Return True when Ollama refused the `format` field (Homebrew MLX 501)."""
+    current: BaseException | None = exc
+    while current is not None:
+        if isinstance(current, urllib.error.HTTPError) and current.code == 501:
+            return True
+        if isinstance(current, ModelError) and "HTTPError 501" in str(current):
+            return True
+        current = current.__cause__
+    return False
 
 
 class JsonModel(Protocol):
@@ -82,16 +126,27 @@ class Ollama:
         try:
             with self.opener(request, timeout=timeout) as response:
                 return json.loads(response.read().decode())
+        except urllib.error.HTTPError as exc:
+            try:
+                detail = exc.read().decode()[:300]
+            except (OSError, ValueError, AttributeError):
+                detail = ""
+            label = f"Ollama request failed: HTTPError {exc.code} {detail}".rstrip()
+            raise ModelError(label) from exc
         except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
             raise ModelError(f"Ollama request failed: {type(exc).__name__}") from exc
 
     def chat_json(self, system: str, user: str, schema: dict[str, Any]) -> dict[str, Any]:
         """Ask the model for JSON that follows a schema.
 
+        Tries Ollama's constrained `format` first. Homebrew's MLX build returns
+        HTTP 501 ("structured output is unavailable"); then the schema goes in
+        the prompt and the reply is parsed in code.
+
         Args:
             system: Instructions.
             user: The data, as text.
-            schema: JSON schema passed as Ollama's `format`.
+            schema: JSON schema passed as Ollama's `format` when the runtime can.
 
         Returns:
             The decoded answer.
@@ -99,6 +154,10 @@ class Ollama:
         Raises:
             ModelError: On a network error, timeout or invalid JSON.
         """
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
         body = {
             "model": self.name,
             "stream": False,
@@ -106,19 +165,33 @@ class Ollama:
             "format": schema,
             "keep_alive": KEEP_ALIVE,
             "options": {"temperature": 0, "num_ctx": NUM_CTX},
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
+            "messages": messages,
         }
-        reply = self._request("/api/chat", body, self.timeout)
         try:
-            answer = json.loads(reply["message"]["content"])
-        except (KeyError, TypeError, ValueError) as exc:
+            reply = self._request("/api/chat", body, self.timeout)
+        except ModelError as exc:
+            if not _structured_output_unavailable(exc):
+                raise
+            fallback = dict(body)
+            del fallback["format"]
+            fallback["messages"] = [
+                {"role": "system", "content": system},
+                {
+                    "role": "user",
+                    "content": (
+                        f"{user}\n\nReply with a JSON object only, matching this schema:\n"
+                        f"{json.dumps(schema, ensure_ascii=False)}"
+                    ),
+                },
+            ]
+            reply = self._request("/api/chat", fallback, self.timeout)
+        try:
+            content = reply["message"]["content"]
+        except (KeyError, TypeError) as exc:
             raise ModelError("model answer is not JSON") from exc
-        if not isinstance(answer, dict):
-            raise ModelError("model answer is not a JSON object")
-        return answer
+        if not isinstance(content, str):
+            raise ModelError("model answer is not JSON")
+        return decode_json_object(content)
 
     def status(self) -> tuple[bool, bool]:
         """Check that Ollama answers and has the model.

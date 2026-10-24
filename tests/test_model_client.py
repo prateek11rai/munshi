@@ -5,7 +5,7 @@ import urllib.error
 import pytest
 
 from munshi.config import Config, ConfigError
-from munshi.write.model import ModelError, Ollama
+from munshi.write.model import ModelError, Ollama, decode_json_object
 
 
 class Response(io.BytesIO):
@@ -73,3 +73,30 @@ def test_status_finds_model():
 def test_remote_url_refused():
     with pytest.raises(ConfigError):
         Ollama.from_config(Config(ollama_url="http://10.0.0.5:11434"))
+
+
+def test_decode_json_object_strips_fences():
+    assert decode_json_object('```json\n{"blocks": []}\n```') == {"blocks": []}
+    assert decode_json_object('here\n{"ok": true}\ntrailing') == {"ok": True}
+
+
+def test_chat_json_retries_when_structured_output_unavailable():
+    seen = []
+
+    def opener(request, timeout):
+        seen.append(json.loads(request.data))
+        if "format" in seen[-1]:
+            raise urllib.error.HTTPError(
+                request.full_url,
+                501,
+                "Not Implemented",
+                None,
+                io.BytesIO(b'{"error":"structured output is unavailable"}'),
+            )
+        payload = {"message": {"content": '```json\n{"blocks": []}\n```'}}
+        return Response(json.dumps(payload).encode())
+
+    model = Ollama("http://127.0.0.1:11434", "gemma4:e4b", opener=opener)
+    assert model.chat_json("sys", "user", {"type": "object"}) == {"blocks": []}
+    assert "format" in seen[0] and "format" not in seen[1]
+    assert "matching this schema" in seen[1]["messages"][1]["content"]
