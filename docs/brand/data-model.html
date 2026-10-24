@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Munshi data model</title>
+<link rel="stylesheet" href="brand.css">
+<style>
+  svg .col { fill: var(--text); font-family: var(--mono); font-size: 21px; }
+  svg .key { fill: var(--accent); font-family: var(--mono); font-size: 21px; }
+  svg .desc { fill: var(--muted); font-family: var(--mono); font-size: 21px; }
+  svg .sep { stroke: var(--line); stroke-width: 2; }
+</style>
+</head>
+<body>
+<script src="diagram.js"></script>
+<script>
+D.start(1600, 1160, "What Munshi stores",
+  "One SQLite file in ~/.munshi. Raw events are kept 14 days; blocks, notes, journal and hours are kept.");
+
+const ROW = 32, HEAD = 62;
+// rows: [column, description, isKey]
+function table(x, y, w, name, rows, cls = "") {
+  const h = HEAD + rows.length * ROW + 18;
+  const b = D.box(x, y, w, h, { title: name, cls, top: 40 });
+  D.el("line", { x1: x, y1: y + HEAD - 6, x2: x + w, y2: y + HEAD - 6, class: "sep" });
+  const at = {};
+  rows.forEach(([col, desc, key], i) => {
+    const by = y + HEAD + 24 + i * ROW;
+    D.text(x + 22, by, col, key ? "key" : "col");
+    D.text(x + 170, by, desc, "desc");
+    at[col] = by - 7;
+  });
+  return { ...b, h, b: y + h, at };
+}
+
+const events = table(70, 150, 460, "events", [
+  ["id", "integer", true],
+  ["kind", "window|away|git|file"],
+  ["start, end", "epoch seconds"],
+  ["app", "app name"],
+  ["title", "redacted title"],
+  ["repo", "repo name"],
+  ["detail", "branch, commits, files"],
+]);
+const blocks = table(570, 150, 460, "blocks", [
+  ["id", "integer, as b12", true],
+  ["slot", "slot start"],
+  ["start, end", "from the evidence"],
+  ["active", "seconds"],
+  ["project", "known name or Other"],
+  ["topic", "topic name"],
+  ["summary", "≤ 14 words"],
+  ["source", "model|fallback|demo"],
+  ["evidence", "[event ids]"],
+], "bar");
+const notes = table(1070, 150, 460, "notes", [
+  ["id", "integer", true],
+  ["kind", "where | day"],
+  ["day", "YYYY-MM-DD"],
+  ["span", "start, end"],
+  ["text", "checked words"],
+  ["source", "model | fallback"],
+  ["cites", "[block ids]"],
+  ["facts", "left open, last file"],
+]);
+const slots = table(70, 680, 460, "slots", [
+  ["start", "15-min slot", true],
+  ["written", "when written"],
+  ["accepted", "model blocks"],
+  ["rejected", "count"],
+  ["fallback", "code blocks"],
+  ["seconds", "model time"],
+  ["reasons", "rejections by check"],
+]);
+const topics = table(570, 680, 460, "topics", [
+  ["name", "no case", true],
+  ["project", "first project"],
+  ["first_seen", "epoch seconds"],
+]);
+const counters = table(1070, 680, 460, "counters", [
+  ["day, name", "e.g. title word", true],
+  ["n", "polls that day"],
+]);
+const state = table(1070, 880, 460, "state", [
+  ["key", "e.g. paused_until", true],
+  ["value", "json"],
+]);
+
+// blocks.evidence → events.id
+D.arrow([[blocks.x - 2, blocks.at.evidence], [550, blocks.at.evidence], [550, events.at.id], [events.r + 2, events.at.id]], { color: "bar" });
+// notes.cites → blocks.id
+D.arrow([[notes.x - 2, notes.at.cites], [1050, notes.at.cites], [1050, blocks.at.id], [blocks.r + 2, blocks.at.id]], { color: "bar" });
+// blocks.topic → topics.name
+D.arrow([[800, blocks.b + 2], [800, topics.y - 2]], { color: "bar", label: { text: "topic → name", x: 814, y: 646 } });
+// blocks.slot → slots.start
+D.arrow([[640, blocks.b + 2], [640, 600], [420, 600], [420, slots.y - 2]], { color: "bar", label: { text: "slot → start", x: 434, y: 646 } });
+// events fall into 15-minute slots by time
+D.arrow([[150, events.b + 2], [150, slots.y - 2]], { dashed: true, label: { text: "by time", x: 164, y: 646 } });
+
+D.text(1090, 1070, "counters and state stand alone:", "m");
+D.text(1090, 1102, "numbers for stats, pause, last scan", "m");
+D.text(590, 900, "arrows are values, not foreign keys:", "m");
+D.text(590, 932, "json id lists, names, slot starts", "m");
+
+D.check();
+</script>
+</body>
+</html>
