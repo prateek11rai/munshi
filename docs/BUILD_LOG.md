@@ -162,6 +162,7 @@ What `munshi stats` showed, and what it changed:
 - The rejections that remain are `no window time` (a block that re-cites a window already taken by an earlier block) and `topic is an app` (terminal stretches recorded before the tmux fix, titled only `tmux`, where no honest topic exists); both fall back to code, which is the point.
 - Dropping unrelated git items lowered the model's share on the burst slots (78 % → 65 % with the third slot): those git items gave the model repo words to label terminal windows with, but a repo none of the windows were in cannot truthfully label them. Correctness over coverage; the numbers cannot show which labels were right, so the owner's eyes on the card decide.
 - Seconds per slot fell from 19.3 (one block per git item) to 6.7 on real slots.
+- With the fourth real slot (the first one written live by the tuned writer, after the tmux fix): **4 slots: 8 accepted · 11 rejected · 8 fallback, 80 % of active time labelled by the model, 9.0 s per slot**. The rejections left are `no window time` × 7 (a block re-citing a taken window) and `topic is an app` × 4 (terminal time recorded before the tmux fix).
 
 ## The "untested on real macOS" list, on the real run
 
@@ -182,3 +183,22 @@ What `munshi stats` showed, and what it changed:
 | Forget last hour | git and window event counts dropped between two `stats` runs while the counters kept counting | ✓ (inferred) |
 | Writer every 15 min | `last writer run` and `slots written` advance every 15 min | ✓ |
 | Midnight split | end-to-end test with fakes (`tests/test_midnight.py`) | ✓ |
+
+## Numbers at the end of phase B (2026-10-25, 01:58 IST)
+
+From `munshi stats` and `eval --real`, numbers only. The run started at 00:40, so this is one short night, not a working day.
+
+- **Recorded:** 36 min of active window time and 28 min away; 297 polls recorded, 120 of them with the tmux pane as the terminal's title; 6 polls skipped as an ignored app, 59 as Munshi's own window, 6 paused, 100 away; 35 git events (one repo always dropped by its name), 0 file events.
+- **Writer, live:** 4 slots, 7 blocks accepted, 19 rejected, 6 fallback; three of those slots were written before the tuning.
+- **Writer, tuned (`eval --real` over the same 4 slots, warm model):** 80 % of active time labelled by the model, 9.0 s per slot. Demo days: 95 %, 3.1 s per slot.
+- **Live seconds per slot are higher** (24 s mean) because Ollama unloads the model 5 minutes after a run (`keep_alive 5m`) and the writer runs every 15 minutes, so most runs start with a cold load of about 17 s. Kept on purpose: the alternative holds 6.6 GB in memory all day.
+- **The app:** 43 MB RSS and 0.0 % CPU at rest (32 MB and 1.1 % at another 10-minute check); 79–91 MB and 34–41 % CPU in the first seconds after a start.
+- **Pending:** the work-profile Firefox has not been in front while the app was recording, so the live `process word` counter is still 0. The matcher itself marks exactly one of the two Firefox instances, and the owner confirmed that one is the work profile.
+
+## Still rough
+
+- Window screenshots by id need Screen Recording permission for the terminal on macOS 26; the owner takes the window shots by hand.
+- A plain shell tab (titled by its shell) is not attributed to tmux; terminal time there is labelled by its title only.
+- Live slots after a long idle pay a cold model load.
+- `no window time` rejections (the model repeats a window in a second block) cost a little time per slot but never coverage.
+- Private windows and title words were tested with fakes only on this run.
